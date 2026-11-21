@@ -2817,6 +2817,10 @@ a {
 ::-webkit-scrollbar-thumb:hover { background: #4de3ffa6; }
 
 /* Bug Report Modal & Quick Report Buttons */
+.ds-bug-dialog {
+  width: min(100%, 460px);
+}
+
 .ds-menu-bug {
   border-color: rgba(255, 93, 143, 0.45);
   color: #ffb8ce;
@@ -2888,17 +2892,18 @@ a {
 .ds-bug-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 13px;
   margin-top: 14px;
 }
 
 .ds-bug-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
 
 .ds-bug-label {
+  display: block;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.14em;
@@ -2906,42 +2911,84 @@ a {
   text-transform: uppercase;
 }
 
-.ds-bug-select,
+.ds-bug-cats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.ds-bug-cat {
+  padding: 8px 8px 7px;
+  background: linear-gradient(180deg, #152645, #0c172b);
+  border: 1.5px solid #264066;
+  box-shadow: 0 2px 0 #060c17, inset 0 1px 0 rgba(230, 241, 255, 0.12);
+  color: var(--color-drift);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+
+.ds-bug-cat:hover {
+  border-color: var(--color-lumen-cyan);
+  color: var(--color-foam);
+}
+
+.ds-bug-cat:active {
+  transform: translateY(1px);
+}
+
+.ds-bug-cat[aria-checked="true"] {
+  border-color: var(--color-lumen-cyan);
+  background: linear-gradient(180deg, rgba(28, 60, 102, 0.95), rgba(16, 36, 66, 0.96));
+  color: #ffffff;
+  box-shadow: 0 2px 0 #060c17, 0 0 12px rgba(77, 227, 255, 0.25), inset 0 1px 0 rgba(230, 241, 255, 0.25);
+}
+
 .ds-bug-input,
 .ds-bug-textarea {
+  display: block;
   width: 100%;
-  padding: 9px 11px;
-  background: rgba(6, 13, 26, 0.9);
+  padding: 9px 12px;
+  background: rgba(6, 13, 26, 0.92);
   border: 1.5px solid #264066;
-  box-shadow: inset 0 2px 5px rgba(2, 5, 11, 0.65);
+  box-shadow: inset 0 2px 6px rgba(2, 5, 11, 0.72);
   color: var(--color-foam);
-  font-family: inherit;
-  font-size: 14px;
+  font-family: var(--font-mono-ui);
+  font-size: 13.5px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.ds-bug-select:focus,
+.ds-bug-input::placeholder,
+.ds-bug-textarea::placeholder {
+  color: var(--color-drift);
+  opacity: 0.55;
+}
+
 .ds-bug-input:focus,
 .ds-bug-textarea:focus {
   border-color: var(--color-lumen-cyan);
-  box-shadow: inset 0 2px 5px rgba(2, 5, 11, 0.65), 0 0 12px rgba(77, 227, 255, 0.24);
+  box-shadow: inset 0 2px 6px rgba(2, 5, 11, 0.72), 0 0 12px rgba(77, 227, 255, 0.24);
 }
 
 .ds-bug-textarea {
   resize: vertical;
-  min-height: 70px;
+  min-height: 68px;
   line-height: 1.4;
 }
 
 .ds-bug-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-top: 4px;
 }
 
 .ds-bug-submit {
+  width: 100%;
   font-size: 15px;
   padding: 12px 14px 10px;
 }
@@ -2949,13 +2996,15 @@ a {
 .ds-bug-subactions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
 }
 
 .ds-bug-sec {
-  font-size: 12.5px;
-  padding: 10px 10px 9px;
-  letter-spacing: 0.08em;
+  width: 100%;
+  font-size: 12px;
+  padding: 10px 8px 9px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -2965,7 +3014,7 @@ a {
 .ds-bug-hint {
   font-size: 11.5px;
   color: var(--color-drift);
-  line-height: 1.35;
+  line-height: 1.38;
   text-align: center;
   margin-top: 2px;
 }

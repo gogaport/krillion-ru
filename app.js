@@ -3349,8 +3349,15 @@
   }
 
   // ---------------- Modals (Menu, Settings, Wardrobe, Archive, Expeditions, FAQ, BugReport) ----------------
-  function openBugReportModal(prefill) {
+  function setBugCategory(catValue) {
     const catEl = document.getElementById('bug-category');
+    if (catEl) catEl.value = catValue;
+    document.querySelectorAll('.ds-bug-cat').forEach((btn) => {
+      btn.setAttribute('aria-checked', String(btn.dataset.cat === catValue));
+    });
+  }
+
+  function openBugReportModal(prefill) {
     const promptEl = document.getElementById('bug-prompt');
     const ansEl = document.getElementById('bug-answer');
     const descEl = document.getElementById('bug-desc');
@@ -3375,7 +3382,7 @@
       }
     }
 
-    if (catEl) catEl.value = (prefill && prefill.category) || 'missing-answer';
+    setBugCategory((prefill && prefill.category) || 'missing-answer');
     if (promptEl) promptEl.value = prefill && prefill.promptText !== undefined ? prefill.promptText : defaultPrompt;
     if (ansEl) ansEl.value = prefill && prefill.answerText !== undefined ? prefill.answerText : defaultAns;
     if (descEl) descEl.value = (prefill && prefill.descText) || '';
@@ -3682,6 +3689,13 @@
     });
   });
 
+  document.querySelectorAll('.ds-bug-cat').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sfx.click();
+      setBugCategory(btn.dataset.cat);
+    });
+  });
+
   const bugForm = document.getElementById('bugreport-form');
   if (bugForm) {
     bugForm.addEventListener('submit', (e) => {
@@ -3703,7 +3717,7 @@
       bugCopyBtn.textContent = 'СКОПИРОВАНО ✓';
       bugCopyBtn.classList.add('copied');
       setTimeout(() => {
-        bugCopyBtn.textContent = 'СКОПИРОВАТЬ ОТЧЁТ';
+        bugCopyBtn.textContent = 'СКОПИРОВАТЬ ТЕКСТ';
         bugCopyBtn.classList.remove('copied');
       }, 2200);
     });

@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#050a14">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="alternate icon" href="favicon.ico">
-  <link rel="stylesheet" href="style.css?v=20261121a">
+  <link rel="stylesheet" href="style.css?v=20261121c">
 </head>
 <body>
   <div id="app" class="ds-root" data-world="ocean" data-phase="intro">
@@ -413,7 +413,7 @@
 
     <!-- Bug Report Modal -->
     <div id="bugreport-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
-      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="bugreport-title">
+      <div class="ds-dialog ds-bug-dialog" role="dialog" aria-modal="true" aria-labelledby="bugreport-title">
         <div class="ds-dialog-head">
           <div>
             <p class="ds-dialog-eyebrow">ОБРАТНАЯ СВЯЗЬ</p>
@@ -426,14 +426,16 @@
         </p>
 
         <form id="bugreport-form" class="ds-bug-form" autocomplete="off">
+          <input id="bug-category" type="hidden" value="missing-answer">
+
           <div class="ds-bug-field">
-            <label class="ds-bug-label" for="bug-category">ТИП ПРОБЛЕМЫ</label>
-            <select id="bug-category" class="ds-bug-select">
-              <option value="missing-answer">Не засчитался правильный ответ</option>
-              <option value="wrong-tier">Неверная редкость / ошибка в вопросе</option>
-              <option value="ui-bug">Технический баг / вёрстка / звук</option>
-              <option value="suggestion">Предложение или новая тема</option>
-            </select>
+            <span class="ds-bug-label">ТИП ПРОБЛЕМЫ</span>
+            <div id="bug-cat-grid" class="ds-bug-cats" role="radiogroup" aria-label="Тип проблемы">
+              <button type="button" class="ds-bug-cat" data-cat="missing-answer" aria-checked="true">Нет ответа в базе</button>
+              <button type="button" class="ds-bug-cat" data-cat="wrong-tier" aria-checked="false">Спорная редкость</button>
+              <button type="button" class="ds-bug-cat" data-cat="ui-bug" aria-checked="false">Технический баг</button>
+              <button type="button" class="ds-bug-cat" data-cat="suggestion" aria-checked="false">Идея / новая тема</button>
+            </div>
           </div>
 
           <div class="ds-bug-field">
@@ -452,19 +454,19 @@
           </div>
 
           <div class="ds-bug-actions">
-            <button type="submit" class="ds-action-btn btn-descend ds-bug-submit">ОТПРАВИТЬ ЧЕРЕЗ GITHUB ↗</button>
+            <button type="submit" class="ds-action-btn btn-descend ds-bug-submit">СОЗДАТЬ ТИКЕТ НА GITHUB ↗</button>
             <div class="ds-bug-subactions">
-              <button type="button" id="bug-copy-btn" class="ds-action-btn ds-bug-sec">СКОПИРОВАТЬ ОТЧЁТ</button>
-              <a id="bug-discord-link" class="ds-action-btn ds-bug-sec" href="https://discord.com/users/445629054708613141" target="_blank" rel="noopener">НАПИСАТЬ В DISCORD ↗</a>
+              <button type="button" id="bug-copy-btn" class="ds-action-btn ds-bug-sec">СКОПИРОВАТЬ ТЕКСТ</button>
+              <a id="bug-discord-link" class="ds-action-btn ds-bug-sec" href="https://discord.com/users/445629054708613141" target="_blank" rel="noopener">DISCORD АВТОРА ↗</a>
             </div>
           </div>
-          <p id="bug-hint" class="ds-bug-hint">При нажатии на «Скопировать» отчёт сохранится в буфер обмена — можно сразу вставить его в Discord автору.</p>
+          <p id="bug-hint" class="ds-bug-hint">При нажатии на «Discord автора» отчёт автоматически копируется в буфер обмена — останется только вставить (Ctrl+V) в личку.</p>
         </form>
       </div>
     </div>
   </div>
 
-  <script src="data.js?v=20261121a"></script>
-  <script src="app.js?v=20261121b"></script>
+  <script src="data.js?v=20261121c"></script>
+  <script src="app.js?v=20261121c"></script>
 </body>
 </html>
