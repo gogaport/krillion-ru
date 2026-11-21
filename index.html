@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <title>КРИЛЛИОН · ежедневное погружение</title>
+  <meta name="description" content="Семь вопросов в день, одинаковых для всех. Редкие ответы погружают вас глубже. Очевидные почти не приносят очков. Один на криллион.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://krillion-ru.online/">
+  <meta property="og:title" content="КРИЛЛИОН · ежедневное погружение">
+  <meta property="og:description" content="Семь вопросов в день, одинаковых для всех. Редкие ответы погружают вас глубже. Очевидные почти не приносят очков. Один на криллион.">
+  <link rel="canonical" href="https://krillion-ru.online/">
+  <meta name="theme-color" content="#050a14">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="alternate icon" href="favicon.ico">
+  <link rel="stylesheet" href="style.css?v=20261121a">
+</head>
+<body>
+  <div id="app" class="ds-root" data-world="ocean" data-phase="intro">
+    <div class="ds-stage-wrap">
+      <div id="stage" class="ds-stage">
+        <canvas id="sea-canvas" class="ds-sea"></canvas>
+
+        <div id="world" class="ds-world">
+          <!-- Surface Hero -->
+          <div id="surface" class="ds-surface">
+            <div id="hero-title" class="ds-title"></div>
+            <div id="hero-tagline" class="ds-tagline">ЕЖЕДНЕВНОЕ ПОГРУЖЕНИЕ</div>
+            <div id="hero-subline" class="ds-subline">7 вопросов · 25 секунд на каждый · редкие ответы погружают глубже</div>
+            <div id="surface-note" class="ds-surface-note" hidden></div>
+          </div>
+
+          <!-- Ambient markers, tier lines, answer chip, landed banner rendered here -->
+          <div id="world-markers"></div>
+          <div id="round-layer"></div>
+
+          <!-- Trench Floor -->
+          <div id="floor" class="ds-floor" aria-hidden="true"></div>
+        </div>
+
+        <canvas id="fore-canvas" class="ds-fore"></canvas>
+
+        <div id="dim-overlay" class="ds-dim"></div>
+        <div id="vignette" class="ds-vignette" style="opacity: 0.25;"></div>
+        <div id="edge-glow" class="ds-edge"></div>
+
+        <!-- Top HUD -->
+        <div id="hud" class="ds-hud">
+          <div class="ds-pod ds-px">
+            <div class="label">ГЛУБИНА</div>
+            <div id="hud-depth" class="ds-depth-num">0м</div>
+          </div>
+
+          <div class="ds-hud-mid">
+            <div id="hud-dots" class="ds-dots"></div>
+            <div id="hud-count" class="ds-prompt-count">ВОПРОС 1 ИЗ 7</div>
+            <button id="endless-surface-btn" type="button" class="ds-endless-surface-btn" hidden>ВСПЛЫТЬ ▲</button>
+          </div>
+
+          <div id="score-pod" class="ds-pod ds-px ds-score-pod">
+            <div class="label">ОЧКИ</div>
+            <div id="hud-score" class="ds-score-num">0</div>
+          </div>
+        </div>
+
+        <!-- Active Prompt Card -->
+        <div id="prompt-card" class="ds-card ds-px" hidden>
+          <div id="card-round" class="rnd">ВОПРОС 1 ИЗ 7</div>
+          <div id="card-prompt" class="prompt"></div>
+          <div class="hint">▼ РЕДКИЕ ОТВЕТЫ ПОГРУЖАЮТ ГЛУБЖЕ ▼</div>
+        </div>
+
+        <!-- Interactive Mascot -->
+        <div id="mascot" class="ds-mascot" title="твой спутник" role="button" tabindex="0" aria-label="Спутник погружения">
+          <span class="ds-mascot-sprite">
+            <img id="mascot-img" src="" alt="крилль" draggable="false">
+          </span>
+        </div>
+
+        <!-- CRT Scanline overlay -->
+        <div id="crt" class="ds-crt"></div>
+      </div>
+    </div>
+
+    <!-- Global Chrome Controls -->
+    <button id="menu-btn" class="ds-menu-btn" type="button" aria-label="Открыть меню" aria-haspopup="dialog">
+      <svg viewBox="0 0 20 20" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
+        <path d="M2 4h16v2.5H2zm0 5h16v2.5H2zm0 5h16v2.5H2z"></path>
+      </svg>
+    </button>
+
+    <button id="mute-btn" class="ds-mute" type="button" aria-label="Выключить звук" aria-pressed="false">
+      <svg id="mute-icon-on" viewBox="0 0 20 16" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">
+        <path d="M2 6h3l4-4v12l-4-4H2z"></path>
+        <rect x="11" y="6" width="2" height="4"></rect>
+        <rect x="15" y="3" width="2" height="10"></rect>
+      </svg>
+      <svg id="mute-icon-off" viewBox="0 0 20 16" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true" hidden>
+        <path d="M2 6h3l4-4v12l-4-4H2z"></path>
+        <path d="M12 5h2v2h2V5h2v2h-2v2h2v2h-2V9h-2v2h-2V9h2V7h-2z"></path>
+      </svg>
+    </button>
+
+    <button id="settings-btn" class="ds-settings-btn" type="button" aria-label="Открыть настройки" aria-haspopup="dialog">
+      <svg viewBox="0 0 20 20" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M6 4H14V6H16V14H14V16H6V14H4V6H6Z M8 1H12V4H8Z M8 16H12V19H8Z M1 8H4V12H1Z M16 8H19V12H16Z M3 3H6V6H3Z M14 3H17V6H14Z M3 14H6V17H3Z M14 14H17V17H14Z M8 8H12V12H8Z"></path>
+      </svg>
+    </button>
+
+    <button id="wardrobe-btn" class="ds-wardrobe-btn" type="button" aria-label="Открыть гардероб" aria-haspopup="dialog">
+      <svg viewBox="0 0 20 20" shape-rendering="crispEdges" fill="currentColor" aria-hidden="true">
+        <path fill-rule="evenodd" d="M4 3H8V5H4Z M12 3H16V5H12Z M2 5H18V9H2Z M5 9H15V17H5Z M9 5H11V7H9Z"></path>
+      </svg>
+    </button>
+
+    <!-- Intro Controls -->
+    <div id="intro-bar" class="ds-intro">
+      <div class="ds-intro-inner">
+        <details class="ds-howto">
+          <summary><span class="ds-howto-arrow">▸</span> КАК ИГРАТЬ</summary>
+          <ul>
+            <li>7 вопросов в день — одинаковых для всех.</li>
+            <li>25 секунд, чтобы назвать один вариант.</li>
+            <li>редкие ответы приносят много очков. очевидные остаются на поверхности.</li>
+            <li>кажется, что придумали хитрость? «косяк» тоже так подумал.</li>
+            <li>каждое очко погружает на 10 метров. 700 очков — дно впадины.</li>
+            <li>одно ежедневное погружение в день. без вторых попыток.</li>
+          </ul>
+        </details>
+
+        <button id="begin-btn" type="button" class="ds-begin-btn">▼ НАЧАТЬ ПОГРУЖЕНИЕ ▼</button>
+
+        <div id="intro-meta" class="ds-intro-meta">
+          <span id="intro-dive-num" class="ds-intro-divenum">ПОГРУЖЕНИЕ #125</span>
+          <div class="ds-intro-links">
+            <button type="button" data-action="expeditions">ЭКСПЕДИЦИИ ✦</button>
+            <button type="button" data-action="archive">АРХИВ ⟲</button>
+            <button type="button" data-action="endless" id="meta-endless-btn">БЕСКОНЕЧНЫЙ ∞</button>
+            <button type="button" data-action="daily" id="meta-daily-btn" hidden>ПОГРУЖЕНИЕ ДНЯ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview Pill -->
+    <div id="preview-pill" class="ds-preview-pill ds-px-sm">
+      погружаемся · таймер через <b id="preview-sec">3</b>
+    </div>
+
+    <!-- Correction Preview & Rejection Toast -->
+    <div id="correction-box" class="ds-correction" role="status" aria-live="polite" hidden></div>
+    <div id="reject-box" class="ds-reject" role="status" aria-live="polite" hidden></div>
+
+    <!-- Answering Input Dock -->
+    <form id="answer-form" class="ds-dock" autocomplete="off">
+      <div class="ds-dock-inner">
+        <div class="ds-sonar-wrap">
+          <div class="ds-sonar-scope">
+            <div class="ds-sweep"></div>
+          </div>
+          <div id="timer-digits" class="ds-time-digits">25</div>
+        </div>
+
+        <div class="ds-input-col">
+          <input
+            id="answer-input"
+            class="ds-input"
+            type="text"
+            placeholder="введите ответ…"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="send"
+            maxlength="120"
+            aria-label="Ваш ответ"
+          >
+          <div class="ds-fuse">
+            <div id="fuse-fill" class="ds-fuse-fill"></div>
+          </div>
+        </div>
+
+        <button id="dive-btn" class="ds-dive-btn ds-px-sm" type="submit">НЫРНУТЬ</button>
+      </div>
+    </form>
+
+    <!-- Next / Surface Bar -->
+    <div id="next-wrap" class="ds-next-wrap">
+      <button id="next-btn" type="button" class="ds-next-btn">ПОГРУЖАТЬСЯ ▼</button>
+      <button id="next-surface-btn" type="button" class="ds-next-btn surface-alt" hidden>ВСПЛЫТЬ ▲</button>
+    </div>
+
+    <!-- Done Summary Screen -->
+    <div id="done-screen" class="ds-done" role="region" aria-label="Результаты погружения">
+      <div id="done-inner" class="ds-done-inner"></div>
+    </div>
+
+    <!-- Centered 2-Col SiteMenu Modal -->
+    <div id="menu-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog ds-menu-dialog" role="dialog" aria-modal="true" aria-labelledby="menu-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">КРИЛЛИОН</p>
+            <h2 id="menu-title" class="ds-dialog-title">Меню</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть меню">X</button>
+        </div>
+
+        <p class="ds-menu-rule"><span>Режимы игры</span></p>
+        <nav class="ds-menu-nav" aria-label="Режимы">
+          <button type="button" class="ds-menu-tile" data-nav="daily">
+            <span class="ds-menu-icon">▼</span>
+            <span class="ds-menu-lbl">Ежедневное<br>погружение</span>
+          </button>
+          <button type="button" class="ds-menu-tile" data-nav="expeditions">
+            <span class="ds-menu-icon">✦</span>
+            <span class="ds-menu-lbl">Экспедиции<br>(16 тем)</span>
+          </button>
+          <button type="button" class="ds-menu-tile" data-nav="endless">
+            <span class="ds-menu-icon">∞</span>
+            <span class="ds-menu-lbl">Бесконечный<br>режим</span>
+          </button>
+          <button type="button" class="ds-menu-tile" data-nav="archive">
+            <span class="ds-menu-icon">⟲</span>
+            <span class="ds-menu-lbl">Архив<br>погружений</span>
+          </button>
+        </nav>
+
+        <p class="ds-menu-rule"><span>Корабль</span></p>
+        <nav class="ds-menu-nav" aria-label="Дополнительно">
+          <button type="button" class="ds-menu-tile" data-nav="wardrobe">
+            <span class="ds-menu-icon">◈</span>
+            <span class="ds-menu-lbl">Гардероб<br>спутников</span>
+          </button>
+          <button type="button" class="ds-menu-tile" data-nav="settings">
+            <span class="ds-menu-icon">⚙</span>
+            <span class="ds-menu-lbl">Настройки</span>
+          </button>
+          <button type="button" class="ds-menu-tile" data-nav="faq">
+            <span class="ds-menu-icon">?</span>
+            <span class="ds-menu-lbl">Правила<br>и FAQ</span>
+          </button>
+          <a class="ds-menu-tile" href="https://gogaportwine.online/">
+            <span class="ds-menu-icon">↗</span>
+            <span class="ds-menu-lbl">На сайт<br>gogaportwine</span>
+          </a>
+        </nav>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">КРИЛЛИОН</p>
+            <h2 id="settings-title" class="ds-dialog-title">Настройки</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть настройки">X</button>
+        </div>
+
+        <button type="button" class="ds-back-link" data-nav="menu">← НАЗАД В МЕНЮ</button>
+
+        <div class="ds-settings-list">
+          <label class="ds-toggle-row">
+            <div>
+              <div class="ds-toggle-title">Режим энергосбережения</div>
+              <div class="ds-toggle-desc">Упрощённая графика и меньше фоновых анимаций.</div>
+            </div>
+            <input id="opt-lowpower" type="checkbox">
+            <span class="ds-switch"></span>
+          </label>
+
+          <label class="ds-toggle-row">
+            <div>
+              <div class="ds-toggle-title">Режим для дальтоников</div>
+              <div class="ds-toggle-desc">Повышенный контраст текста и чёткое разделение цветов редкости.</div>
+            </div>
+            <input id="opt-colorblind" type="checkbox">
+            <span class="ds-switch"></span>
+          </label>
+
+          <label class="ds-toggle-row">
+            <div>
+              <div class="ds-toggle-title">Исправление опечаток</div>
+              <div class="ds-toggle-desc">Показывать подсказку исправленного ответа перед зачётом.</div>
+            </div>
+            <input id="opt-corrections" type="checkbox" checked>
+            <span class="ds-switch"></span>
+          </label>
+
+          <label class="ds-toggle-row">
+            <div>
+              <div class="ds-toggle-title">Очищать непринятые ответы</div>
+              <div class="ds-toggle-desc">Стирать текст в поле после неудачной попытки.</div>
+            </div>
+            <input id="opt-clear-rejected" type="checkbox">
+            <span class="ds-switch"></span>
+          </label>
+
+          <label class="ds-toggle-row">
+            <div>
+              <div class="ds-toggle-title">Ссылка при копировании</div>
+              <div class="ds-toggle-desc">Добавлять ссылку на игру в скопированный результат.</div>
+            </div>
+            <input id="opt-share-link" type="checkbox" checked>
+            <span class="ds-switch"></span>
+          </label>
+        </div>
+
+        <p class="ds-menu-rule"><span>Разделы и справка</span></p>
+        <div class="ds-settings-links">
+          <button type="button" class="ds-settings-btn-wide" data-nav="wardrobe">ГАРДЕРОБ СПУТНИКОВ →</button>
+          <button type="button" class="ds-settings-btn-wide" data-nav="faq">ВОПРОСЫ И ОТВЕТЫ →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Wardrobe Modal -->
+    <div id="wardrobe-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="wardrobe-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">СПУТНИК ПОГРУЖЕНИЯ</p>
+            <h2 id="wardrobe-title" class="ds-dialog-title">Гардероб</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть гардероб">X</button>
+        </div>
+
+        <label class="ds-toggle-row ds-toggle-boxed">
+          <div>
+            <div class="ds-toggle-title">Открыть всех спутников</div>
+            <div class="ds-toggle-desc">Песочница: примерьте любого питомца без ожидания серии дней.</div>
+          </div>
+          <input id="opt-unlock-buddies" type="checkbox">
+          <span class="ds-switch"></span>
+        </label>
+
+        <div id="wardrobe-grid" class="ds-wardrobe-grid" role="group" aria-label="Выбор спутника"></div>
+      </div>
+    </div>
+
+    <!-- Archive Modal -->
+    <div id="archive-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="archive-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">ОКЕАН ПРОДОЛЖАЕТСЯ</p>
+            <h2 id="archive-title" class="ds-dialog-title">Архив погружений</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть архив">X</button>
+        </div>
+        <p class="ds-modal-sub">
+          Погружения за последние 14 дней доступны бесплатно и без рекламы. Выберите любой день, чтобы нырнуть:
+        </p>
+        <div id="archive-grid" class="ds-archive-grid"></div>
+      </div>
+    </div>
+
+    <!-- Expeditions Modal -->
+    <div id="expeditions-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog ds-expeditions-dialog" role="dialog" aria-modal="true" aria-labelledby="expeditions-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">КАМПАНИЯ · 16 УРОВНЕЙ</p>
+            <h2 id="expeditions-title" class="ds-dialog-title">Экспедиции</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть экспедиции">X</button>
+        </div>
+        <p class="ds-modal-sub">
+          Тематические наборы по 7 вопросов в свободном порядке. Проходите уровни, выбивайте золото (450+ очков) и открывайте редких спутников!
+        </p>
+        <div id="expeditions-summary" class="ds-exp-summary"></div>
+        <div id="expeditions-grid" class="ds-exp-grid"></div>
+      </div>
+    </div>
+
+    <!-- FAQ Modal -->
+    <div id="faq-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="faq-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">СПРАВКА</p>
+            <h2 id="faq-title" class="ds-dialog-title">Вопросы и ответы</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть справку">X</button>
+        </div>
+        <div class="ds-faq-list">
+          <div>
+            <h3>Как работает подсчёт очков и глубины?</h3>
+            <p>За каждый из 7 вопросов даётся от 0 до 100 очков в зависимости от редкости вашего ответа. Каждое очко погружает на 10 метров: 700 очков выводят вас на самое дно Марианской впадины (7 000 м).</p>
+          </div>
+          <div>
+            <h3>Что такое «Слишком умно» (15 очков)?</h3>
+            <p>Это «ловушка для умников» — ответ, который не кажется банальным, но на деле его вспоминают почти все, кто пытается выделиться. Например, «Авокадо» среди продуктов на букву О или «Утконос» среди необычных животных.</p>
+          </div>
+          <div>
+            <h3>Что такое «Экспедиции»?</h3>
+            <p>Это кампания из 16 тематических уровней (по 7 вопросов в каждом). В отличие от ежедневного микса, каждый уровень посвящён одной большой теме. За 5 уровней, все 16 уровней и все 16 уровней на золото (450+ очков) открываются уникальные спутники в Гардеробе.</p>
+          </div>
+          <div>
+            <h3>Как работает автоисправление и ввод?</h3>
+            <p>Вы можете вводить ответы как на русском, так и на английском (особенно для игр, брендов, аниме и покемонов). Небольшие опечатки автоматически распознаются. В бесконечном режиме все 235 тем идут по очереди без повторений.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js?v=20261120d"></script>
+  <script src="app.js?v=20261120c"></script>
+</body>
+</html>
