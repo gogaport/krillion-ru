@@ -799,7 +799,7 @@
   {
     "id": "rock-pop-band",
     "text": "Назови зарубежную музыкальную группу или исполнителя",
-    "count": 1160,
+    "count": 1204,
     "strictShape": false
   },
   {
@@ -1099,7 +1099,7 @@
   {
     "id": "us-state",
     "text": "Назови штат США",
-    "count": 50,
+    "count": 52,
     "strictShape": false
   },
   {
@@ -1183,7 +1183,7 @@
   {
     "id": "russia-region",
     "text": "Назови республику, край или область России",
-    "count": 85,
+    "count": 89,
     "strictShape": false
   },
   {
@@ -1339,7 +1339,7 @@
   {
     "id": "cs-term-map",
     "text": "Назови карту, оружие или термин из Counter-Strike (CS:GO / CS2)",
-    "count": 160,
+    "count": 188,
     "strictShape": false
   },
   {
@@ -1381,7 +1381,7 @@
   {
     "id": "internet-meme",
     "text": "Назови известный интернет-мем или мемного персонажа",
-    "count": 174,
+    "count": 185,
     "strictShape": false
   },
   {
@@ -1507,7 +1507,7 @@
   {
     "id": "gamer-internet-slang",
     "text": "Назови популярное геймерское или интернет-сленговое слово",
-    "count": 188,
+    "count": 202,
     "strictShape": false
   },
   {
@@ -1573,13 +1573,13 @@
   {
     "id": "tv-series-char",
     "text": "Назови культового персонажа зарубежного или российского сериала",
-    "count": 274,
+    "count": 289,
     "strictShape": false
   },
   {
     "id": "famous-singer-solo",
     "text": "Назови легендарного сольного певца или певицу мира",
-    "count": 259,
+    "count": 306,
     "strictShape": false
   },
   {
@@ -1591,7 +1591,7 @@
   {
     "id": "soundtrack-composer-ost",
     "text": "Назови композитора, фильм или игру, известную легендарным саундтреком",
-    "count": 199,
+    "count": 234,
     "strictShape": false
   },
   {
@@ -1603,7 +1603,7 @@
   {
     "id": "famous-song-title",
     "text": "Назови всемирно известную песню или культовый русскоязычный хит",
-    "count": 238,
+    "count": 368,
     "strictShape": false
   },
   {
@@ -1778,7 +1778,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261121e`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261121f`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
