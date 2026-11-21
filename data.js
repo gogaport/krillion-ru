@@ -457,7 +457,7 @@
   {
     "id": "board-game",
     "text": "Назови настольную или карточную игру",
-    "count": 315,
+    "count": 388,
     "strictShape": false
   },
   {
@@ -1778,7 +1778,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261120c`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261121d`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
