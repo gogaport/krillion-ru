@@ -244,6 +244,10 @@
             <span class="ds-menu-icon">↗</span>
             <span class="ds-menu-lbl">На сайт<br>gogaportwine</span>
           </a>
+          <button type="button" class="ds-menu-tile ds-menu-wide ds-menu-bug" data-nav="bugreport">
+            <span class="ds-menu-icon">⚑</span>
+            <span class="ds-menu-lbl">Сообщить об ошибке или ответе</span>
+          </button>
         </nav>
       </div>
     </div>
@@ -312,6 +316,7 @@
         <div class="ds-settings-links">
           <button type="button" class="ds-settings-btn-wide" data-nav="wardrobe">ГАРДЕРОБ СПУТНИКОВ →</button>
           <button type="button" class="ds-settings-btn-wide" data-nav="faq">ВОПРОСЫ И ОТВЕТЫ →</button>
+          <button type="button" class="ds-settings-btn-wide ds-settings-btn-full" data-nav="bugreport">⚑ СООБЩИТЬ ОБ ОШИБКЕ →</button>
         </div>
       </div>
     </div>
@@ -405,9 +410,61 @@
         </div>
       </div>
     </div>
+
+    <!-- Bug Report Modal -->
+    <div id="bugreport-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog" role="dialog" aria-modal="true" aria-labelledby="bugreport-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">ОБРАТНАЯ СВЯЗЬ</p>
+            <h2 id="bugreport-title" class="ds-dialog-title">Сообщить об ошибке</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть окно">X</button>
+        </div>
+        <p class="ds-modal-sub">
+          Не засчитался правильный ответ, нашли неточность в вопросе или баг интерфейса? Опишите ниже — данные подставятся автоматически.
+        </p>
+
+        <form id="bugreport-form" class="ds-bug-form" autocomplete="off">
+          <div class="ds-bug-field">
+            <label class="ds-bug-label" for="bug-category">ТИП ПРОБЛЕМЫ</label>
+            <select id="bug-category" class="ds-bug-select">
+              <option value="missing-answer">Не засчитался правильный ответ</option>
+              <option value="wrong-tier">Неверная редкость / ошибка в вопросе</option>
+              <option value="ui-bug">Технический баг / вёрстка / звук</option>
+              <option value="suggestion">Предложение или новая тема</option>
+            </select>
+          </div>
+
+          <div class="ds-bug-field">
+            <label class="ds-bug-label" for="bug-prompt">ВОПРОС / ТЕМА</label>
+            <input id="bug-prompt" class="ds-bug-input" type="text" placeholder="Например: Назовите химический элемент…" maxlength="160">
+          </div>
+
+          <div class="ds-bug-field">
+            <label class="ds-bug-label" for="bug-answer">ВАШ ОТВЕТ (ЕСЛИ АКТУАЛЬНО)</label>
+            <input id="bug-answer" class="ds-bug-input" type="text" placeholder="Какой вариант вы вводили?" maxlength="120">
+          </div>
+
+          <div class="ds-bug-field">
+            <label class="ds-bug-label" for="bug-desc">КОММЕНТАРИЙ / ПОДРОБНОСТИ</label>
+            <textarea id="bug-desc" class="ds-bug-textarea" rows="3" placeholder="Что пошло не так или почему этот ответ должен засчитываться…" maxlength="800"></textarea>
+          </div>
+
+          <div class="ds-bug-actions">
+            <button type="submit" class="ds-action-btn btn-descend ds-bug-submit">ОТПРАВИТЬ ЧЕРЕЗ GITHUB ↗</button>
+            <div class="ds-bug-subactions">
+              <button type="button" id="bug-copy-btn" class="ds-action-btn ds-bug-sec">СКОПИРОВАТЬ ОТЧЁТ</button>
+              <a id="bug-discord-link" class="ds-action-btn ds-bug-sec" href="https://discord.com/users/445629054708613141" target="_blank" rel="noopener">НАПИСАТЬ В DISCORD ↗</a>
+            </div>
+          </div>
+          <p id="bug-hint" class="ds-bug-hint">При нажатии на «Скопировать» отчёт сохранится в буфер обмена — можно сразу вставить его в Discord автору.</p>
+        </form>
+      </div>
+    </div>
   </div>
 
-  <script src="data.js?v=20261120d"></script>
-  <script src="app.js?v=20261120c"></script>
+  <script src="data.js?v=20261121a"></script>
+  <script src="app.js?v=20261121b"></script>
 </body>
 </html>

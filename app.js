@@ -2357,7 +2357,25 @@
 
   function showReject(typed) {
     sfx.reject();
-    rejectBoxEl.textContent = `«${typed}»: нет эха. попробуйте ещё`;
+    rejectBoxEl.innerHTML = '';
+    const msgSpan = document.createElement('span');
+    msgSpan.textContent = `«${typed}»: нет эха. попробуйте ещё`;
+    const repBtn = document.createElement('button');
+    repBtn.type = 'button';
+    repBtn.className = 'ds-reject-report-btn';
+    repBtn.textContent = '⚑ должен быть?';
+    repBtn.addEventListener('click', () => {
+      sfx.click();
+      const prompt = getCurrentPrompt();
+      openBugReportModal({
+        category: 'missing-answer',
+        promptText: prompt ? `${prompt.text} [${prompt.id}]` : '',
+        answerText: typed,
+        descText: ''
+      });
+    });
+    rejectBoxEl.appendChild(msgSpan);
+    rejectBoxEl.appendChild(repBtn);
     rejectBoxEl.hidden = false;
     rejectBoxEl.classList.remove('ds-reject-shake');
     void rejectBoxEl.offsetWidth;
@@ -2995,6 +3013,7 @@
           <button type="button" id="done-daily-link">ежедневное</button>
           <button type="button" id="done-settings-link">настройки</button>
           <button type="button" id="done-faq-link">частые вопросы</button>
+          <button type="button" id="done-bug-link">⚑ сообщить об ошибке</button>
           <a href="https://gogaportwine.online/">gogaportwine.online</a>
         </div>
       </div>
@@ -3076,7 +3095,23 @@
       <div class="ds-tier-filters" role="group" aria-label="Фильтр по редкости">${filtersHtml}</div>
       <input type="search" class="ds-catch-search" placeholder="Поиск по всем ответам…" aria-label="Поиск ответов">
       <ul class="ds-answer-ul"></ul>
+      <div class="ds-catch-report-row">
+        <button type="button" class="ds-catch-report-btn">⚑ Не нашли свой ответ или заметили ошибку в этой теме?</button>
+      </div>
     `;
+
+    const reportRoundBtn = drawerEl.querySelector('.ds-catch-report-btn');
+    if (reportRoundBtn) {
+      reportRoundBtn.addEventListener('click', () => {
+        sfx.click();
+        openBugReportModal({
+          category: 'missing-answer',
+          promptText: `${prompt.text} [${prompt.id}]`,
+          answerText: searchInput.value.trim() || userAnswer || '',
+          descText: ''
+        });
+      });
+    }
 
     const ul = drawerEl.querySelector('.ds-answer-ul');
     const searchInput = drawerEl.querySelector('.ds-catch-search');
@@ -3262,7 +3297,13 @@
       appState.suggestions.push({ text: val, at: new Date().toISOString() });
       saveState();
       suggestInput.value = '';
-      suggestInput.placeholder = 'спасибо! идея сохранена ✓';
+      suggestInput.placeholder = 'спасибо! откроем отправку…';
+      openBugReportModal({
+        category: 'suggestion',
+        promptText: '',
+        answerText: '',
+        descText: val
+      });
     });
 
     document.getElementById('done-daily-link').addEventListener('click', () => {
@@ -3277,6 +3318,13 @@
       sfx.click();
       openModal('faq-backdrop');
     });
+    const doneBugLink = document.getElementById('done-bug-link');
+    if (doneBugLink) {
+      doneBugLink.addEventListener('click', () => {
+        sfx.click();
+        openBugReportModal();
+      });
+    }
   }
 
   let countdownInterval = null;
@@ -3300,7 +3348,86 @@
     countdownInterval = setInterval(update, 1000);
   }
 
-  // ---------------- Modals (Menu, Settings, Wardrobe, Archive, Expeditions, FAQ) ----------------
+  // ---------------- Modals (Menu, Settings, Wardrobe, Archive, Expeditions, FAQ, BugReport) ----------------
+  function openBugReportModal(prefill) {
+    const catEl = document.getElementById('bug-category');
+    const promptEl = document.getElementById('bug-prompt');
+    const ansEl = document.getElementById('bug-answer');
+    const descEl = document.getElementById('bug-desc');
+
+    let defaultPrompt = '';
+    let defaultAns = '';
+    const curPrompt = getCurrentPrompt();
+    if (session.phase === 'answering' || session.phase === 'preview' || session.phase === 'feedback') {
+      if (curPrompt) {
+        defaultPrompt = `${curPrompt.text} [${curPrompt.id}]`;
+      }
+      if (answerInput && answerInput.value.trim()) {
+        defaultAns = answerInput.value.trim();
+      } else if (session.results.length) {
+        const lastRes = session.results[session.results.length - 1];
+        if (lastRes && lastRes.answer) defaultAns = lastRes.answer;
+      }
+    } else if (session.phase === 'done' && session.results.length) {
+      const lastRes = session.results[session.results.length - 1];
+      if (lastRes) {
+        defaultPrompt = `${lastRes.promptText} [${lastRes.promptId}]`;
+      }
+    }
+
+    if (catEl) catEl.value = (prefill && prefill.category) || 'missing-answer';
+    if (promptEl) promptEl.value = prefill && prefill.promptText !== undefined ? prefill.promptText : defaultPrompt;
+    if (ansEl) ansEl.value = prefill && prefill.answerText !== undefined ? prefill.answerText : defaultAns;
+    if (descEl) descEl.value = (prefill && prefill.descText) || '';
+
+    openModal('bugreport-backdrop');
+  }
+
+  function buildBugReportPayload() {
+    const catEl = document.getElementById('bug-category');
+    const promptEl = document.getElementById('bug-prompt');
+    const ansEl = document.getElementById('bug-answer');
+    const descEl = document.getElementById('bug-desc');
+
+    const category = catEl ? catEl.value : 'missing-answer';
+    const categoryLabels = {
+      'missing-answer': 'Не засчитался ответ',
+      'wrong-tier': 'Неверная редкость / вопрос',
+      'ui-bug': 'Технический баг',
+      'suggestion': 'Предложение / идея'
+    };
+    const catLabel = categoryLabels[category] || 'Обратная связь';
+    const promptVal = (promptEl ? promptEl.value.trim() : '') || 'Не указан';
+    const ansVal = (ansEl ? ansEl.value.trim() : '') || '—';
+    const descVal = (descEl ? descEl.value.trim() : '') || '—';
+    const modeInfo = `${session.mode} (dive #${session.diveNumber || '—'}, phase: ${session.phase})`;
+
+    const titleParts = [`[${catLabel}]`];
+    if (ansVal !== '—') titleParts.push(`«${ansVal}»`);
+    if (promptVal !== 'Не указан') titleParts.push(`— ${promptVal.slice(0, 60)}`);
+    else if (descVal !== '—') titleParts.push(`— ${descVal.slice(0, 60)}`);
+    const title = titleParts.join(' ');
+
+    const body = [
+      `### Тип обращения`,
+      catLabel,
+      ``,
+      `### Вопрос / Тема`,
+      promptVal,
+      ``,
+      `### Введённый ответ`,
+      ansVal,
+      ``,
+      `### Комментарий`,
+      descVal,
+      ``,
+      `---`,
+      `*Контекст: режим \`${modeInfo}\` · экран \`${window.innerWidth}x${window.innerHeight}\`*`
+    ].join('\n');
+
+    return { title, body, category };
+  }
+
   function openModal(id) {
     closeAllModals();
     if (id === 'wardrobe-backdrop') renderWardrobe();
@@ -3551,8 +3678,44 @@
       else if (target === 'wardrobe') openModal('wardrobe-backdrop');
       else if (target === 'settings') openModal('settings-backdrop');
       else if (target === 'faq') openModal('faq-backdrop');
+      else if (target === 'bugreport') openBugReportModal();
     });
   });
+
+  const bugForm = document.getElementById('bugreport-form');
+  if (bugForm) {
+    bugForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      sfx.click();
+      const { title, body } = buildBugReportPayload();
+      const url = `https://github.com/gogaport/krillion-ru/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+      window.open(url, '_blank', 'noopener');
+    });
+  }
+
+  const bugCopyBtn = document.getElementById('bug-copy-btn');
+  if (bugCopyBtn) {
+    bugCopyBtn.addEventListener('click', () => {
+      sfx.click();
+      const { title, body } = buildBugReportPayload();
+      const fullText = `${title}\n\n${body}`;
+      navigator.clipboard?.writeText(fullText).catch(() => {});
+      bugCopyBtn.textContent = 'СКОПИРОВАНО ✓';
+      bugCopyBtn.classList.add('copied');
+      setTimeout(() => {
+        bugCopyBtn.textContent = 'СКОПИРОВАТЬ ОТЧЁТ';
+        bugCopyBtn.classList.remove('copied');
+      }, 2200);
+    });
+  }
+
+  const bugDiscordLink = document.getElementById('bug-discord-link');
+  if (bugDiscordLink) {
+    bugDiscordLink.addEventListener('click', () => {
+      const { title, body } = buildBugReportPayload();
+      navigator.clipboard?.writeText(`${title}\n\n${body}`).catch(() => {});
+    });
+  }
 
   const settingBindings = [
     ['opt-lowpower', 'lowPower'],
