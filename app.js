@@ -1765,12 +1765,8 @@
       this.x = 40;
       this.y = 200;
       this.prevX = 40;
-      this.facing = 1; // 1 = left/default, -1 = flipped right
-      this.lastBubbleTs = 0;
-      this.bubbleEl = document.getElementById('mascot-bubble');
-      this.bubbleTimer = null;
+      this.facing = 1;
       this.spriteWrap = this.el.querySelector('.ds-mascot-sprite');
-      this.panicActive = false;
       this.applyBuddy();
       this.el.addEventListener('click', () => this.poke());
       this.el.addEventListener('keydown', (e) => {
@@ -1791,62 +1787,28 @@
       this.el.classList.toggle('gold', !!buddy.gold);
     }
 
-    say(text, ms = 1400) {
-      if (!this.bubbleEl || !text) return;
-      clearTimeout(this.bubbleTimer);
-      this.bubbleEl.textContent = text;
-      this.bubbleEl.classList.add('show');
-      this.bubbleTimer = setTimeout(() => {
-        this.bubbleEl.classList.remove('show');
-      }, ms);
-    }
-
     playAnim(cls) {
-      this.img.classList.remove('jet', 'chomp', 'celebrate', 'startle');
+      this.img.classList.remove('jet', 'chomp', 'dive');
       void this.img.offsetWidth;
       if (cls) this.img.classList.add(cls);
     }
 
-    setPanic(on) {
-      if (this.panicActive === !!on) return;
-      this.panicActive = !!on;
-      this.el.classList.toggle('panic', this.panicActive);
-      if (this.panicActive) {
-        this.say('БЫСТРЕЕ!', 1100);
-      }
+    setPanic() {
+      // No-op: keep motion smooth and natural like original krillion.io
     }
 
     react(kind, color) {
+      if (kind === 'reject' || kind === 'miss') return;
       const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
       const fxColor = color || buddy.color;
-      if (kind === 'krillion') {
-        this.playAnim('celebrate');
-        ocean.spawnBurst(this.x + 32, this.y + 32, '#ffd166', 20);
-        this.say('КРИЛЛИОН!!', 1900);
-      } else if (kind === 'deepcut') {
-        this.playAnim('celebrate');
-        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 15);
-        this.say('ГЛУБОКО!', 1600);
-      } else if (kind === 'rare') {
+      if (kind === 'krillion' || kind === 'deepcut') {
         this.playAnim('jet');
-        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 12);
-        this.say('РЕДКОСТЬ!', 1400);
-      } else if (kind === 'schooler') {
-        this.playAnim('jet');
+        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 14);
+      } else if (kind === 'rare' || kind === 'schooler') {
+        this.playAnim('dive');
         ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 8);
-        this.say('ХОРОШО!', 1200);
-      } else if (kind === 'tooclever') {
-        this.playAnim('chomp');
-        this.say('ХИТРО!', 1200);
-      } else if (kind === 'plankton') {
-        this.playAnim('chomp');
-        this.say('БУЛЬК...', 1100);
-      } else if (kind === 'miss') {
-        this.playAnim('startle');
-        this.say('ОЙ!', 1200);
-      } else if (kind === 'reject') {
-        this.playAnim('startle');
-        this.say('ХМ?', 900);
+      } else {
+        this.playAnim('dive');
       }
     }
 
@@ -1855,8 +1817,6 @@
       this.playAnim(Math.random() > 0.45 ? 'jet' : 'chomp');
       const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
       ocean.spawnBurst(this.x + 32, this.y + 32, buddy.color, 10);
-      const lines = ['БУЛЬК!', 'ГЛУБЖЕ!', 'ЩЁЛК!', 'НЯМ!', 'В БЕЗДНУ!'];
-      this.say(lines[Math.floor(Math.random() * lines.length)], 1100);
     }
 
     update(ts, phase) {
@@ -1864,13 +1824,11 @@
       const w = vv ? vv.width : window.innerWidth;
       const h = vv ? vv.height : window.innerHeight;
       if (phase === 'done') {
-        this.setPanic(false);
         if (w < 560) {
           this.el.style.opacity = '0';
           return;
         }
         this.el.style.opacity = '';
-        // Done screen covers stage behind semi-transparent glass; tuck buddy neatly upper-right
         this.x = Math.max(w - 110, w * 0.78);
         this.y = 115 + Math.sin(ts * 0.002) * 8;
         this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(-6deg)`;
@@ -1887,7 +1845,6 @@
       }
       const t = ts * 0.0008;
       if (phase === 'intro') {
-        this.setPanic(false);
         const cx = w * 0.72;
         const cy = h * 0.62;
         const rx = Math.min(w * 0.14, 110);
@@ -1896,44 +1853,24 @@
         this.y = Math.max(76, Math.min(h - 165, cy + Math.sin(t * 1.6) * ry));
         const rot = Math.sin(t * 2.1) * 11;
         this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
-        if (this.spriteWrap) this.spriteWrap.style.transform = (this.x - this.prevX) > 0.05 ? 'scaleX(-1)' : '';
+        if (this.spriteWrap) this.spriteWrap.style.transform = (this.x - this.prevX) > 0.04 ? 'scaleX(-1)' : '';
         this.prevX = this.x;
         return;
       }
-      // During preview/answering/feedback, swim actively around the safe perimeter so the shrimp feels alive!
-      const speedMul = this.panicActive ? 2.3 : 1;
-      const st = ts * 0.00075 * speedMul;
-      let targetX, targetY;
-      if (w >= 860) {
-        // Desktop: gracefully cruise across left & right lanes and sweep along the bottom arc
-        const sweep = Math.sin(st * 0.55); // -1..1
-        const sideSpan = Math.min(w * 0.42, 420);
-        targetX = w * 0.5 + sweep * sideSpan - 33;
-        // Dip lower when crossing center so it never blocks the prompt card
-        const centerFactor = 1 - Math.min(1, Math.abs(sweep) * 1.45);
-        const baseY = h * 0.56 + centerFactor * (h * 0.27);
-        targetY = baseY + Math.sin(st * 1.9) * 34;
-      } else {
-        // Mobile/tablet: swim widely along the lower-mid water band
-        targetX = w * 0.5 + Math.sin(st * 0.85) * (w * 0.36) - 28;
-        targetY = h - 168 + Math.sin(st * 2.1) * 24;
-      }
-      this.x = Math.max(14, Math.min(w - 80, targetX));
-      this.y = Math.max(88, Math.min(h - 110, targetY));
+      // Smooth krillion.io-style figure-8 floating in open water beside the prompt
+      const cx = w >= 860 ? w * 0.8 : w * 0.78;
+      const cy = h * 0.64;
+      const rx = w >= 860 ? Math.min(w * 0.09, 95) : Math.min(w * 0.12, 54);
+      const ry = Math.min(h * 0.07, 46);
+      this.x = Math.max(18, Math.min(w - 86, cx + Math.cos(t * 0.9) * rx));
+      this.y = Math.max(88, Math.min(h - 150, cy + Math.sin(t * 1.5) * ry));
       const dx = this.x - this.prevX;
-      if (Math.abs(dx) > 0.08) this.facing = dx > 0 ? -1 : 1;
+      if (Math.abs(dx) > 0.05) this.facing = dx > 0 ? -1 : 1;
       this.prevX = this.x;
-      const rot = Math.sin(st * 2.4) * (this.panicActive ? 15 : 10);
+      const rot = Math.sin(t * 1.8) * 10 + (phase === 'feedback' ? 8 : 0);
       this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
       if (this.spriteWrap) {
         this.spriteWrap.style.transform = this.facing === -1 ? 'scaleX(-1)' : '';
-      }
-      // Periodic tiny bubble trail while swimming
-      const bubbleInterval = this.panicActive ? 260 : 1100;
-      if (ts - this.lastBubbleTs > bubbleInterval) {
-        this.lastBubbleTs = ts;
-        const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
-        ocean.spawnBurst(this.x + 32, this.y + 34, buddy.color, this.panicActive ? 3 : 2);
       }
     }
   }
