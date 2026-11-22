@@ -1857,17 +1857,29 @@
         this.prevX = this.x;
         return;
       }
-      // Smooth krillion.io-style figure-8 floating in open water beside the prompt
-      const cx = w >= 860 ? w * 0.8 : w * 0.78;
-      const cy = h * 0.64;
-      const rx = w >= 860 ? Math.min(w * 0.09, 95) : Math.min(w * 0.12, 54);
-      const ry = Math.min(h * 0.07, 46);
-      this.x = Math.max(18, Math.min(w - 86, cx + Math.cos(t * 0.9) * rx));
-      this.y = Math.max(88, Math.min(h - 150, cy + Math.sin(t * 1.5) * ry));
+      // Gameplay: distinct from intro!
+      // In preview/answering: swim on the left with realistic shrimp tail-kick + glide motion
+      // In feedback (diving deeper): pitch nose down and glide downward with the dive
+      if (phase === 'feedback') {
+        const diveX = w >= 860 ? w * 0.16 : w * 0.18;
+        const diveY = h * 0.42 + Math.sin(t * 2.4) * 28 + 36;
+        this.x = Math.max(18, Math.min(w - 86, diveX + Math.sin(t * 1.4) * 18));
+        this.y = Math.max(88, Math.min(h - 130, diveY));
+        this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(52deg)`;
+        if (this.spriteWrap) this.spriteWrap.style.transform = 'scaleX(-1)';
+        this.prevX = this.x;
+        return;
+      }
+      // Tail-kick + glide cycle (sharp kick, smooth coast)
+      const kick = Math.pow(Math.max(0, Math.sin(t * 2.6)), 3);
+      const baseX = w >= 860 ? w * 0.14 : 26;
+      const baseY = w >= 860 ? h * 0.52 : h - 178;
+      this.x = Math.max(16, Math.min(w - 86, baseX + Math.sin(t * 0.8) * (w >= 860 ? 38 : 22) + kick * 12));
+      this.y = Math.max(92, Math.min(h - 145, baseY + Math.cos(t * 1.2) * (w >= 860 ? 48 : 22) - kick * 10));
       const dx = this.x - this.prevX;
       if (Math.abs(dx) > 0.05) this.facing = dx > 0 ? -1 : 1;
       this.prevX = this.x;
-      const rot = Math.sin(t * 1.8) * 10 + (phase === 'feedback' ? 8 : 0);
+      const rot = -8 + kick * 18 + Math.sin(t * 1.6) * 6;
       this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
       if (this.spriteWrap) {
         this.spriteWrap.style.transform = this.facing === -1 ? 'scaleX(-1)' : '';
