@@ -1603,7 +1603,7 @@
   {
     "id": "famous-song-title",
     "text": "Назови всемирно известную песню или культовый русскоязычный хит",
-    "count": 368,
+    "count": 1401,
     "strictShape": false
   },
   {
@@ -1778,7 +1778,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261121f`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261122a`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
