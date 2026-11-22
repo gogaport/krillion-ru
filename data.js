@@ -1767,6 +1767,306 @@
     "text": "Назови легендарного спортсмена (футбол, бокс, ММА, теннис, Ф1, баскетбол, хоккей и др.)",
     "count": 289,
     "strictShape": false
+  },
+  {
+    "id": "fictional-weapon",
+    "text": "Назови вымышленное оружие или артефакт из фильмов, игр, книг или мифов",
+    "count": 147,
+    "strictShape": false
+  },
+  {
+    "id": "web-browser",
+    "text": "Назови веб-браузер (современный или исторический)",
+    "count": 100,
+    "strictShape": false
+  },
+  {
+    "id": "fictional-detective",
+    "text": "Назови вымышленного детектива или сыщика из книг, кино, сериалов или игр",
+    "count": 121,
+    "strictShape": false
+  },
+  {
+    "id": "castle-part",
+    "text": "Назови часть замка, крепости или средневекового укрепления",
+    "count": 100,
+    "strictShape": false
+  },
+  {
+    "id": "body-auto-action",
+    "text": "Назови действие, которое человеческий организм делает автоматически (рефлекс или процесс)",
+    "count": 96,
+    "strictShape": false
+  },
+  {
+    "id": "masked-character",
+    "text": "Назови вымышленного персонажа, который носит маску или шлем",
+    "count": 115,
+    "strictShape": false
+  },
+  {
+    "id": "board-sport",
+    "text": "Назови вид спорта на доске (водный, зимний или уличный)",
+    "count": 64,
+    "strictShape": false
+  },
+  {
+    "id": "farm-animal",
+    "text": "Назови сельскохозяйственное или домашнее животное (не породу)",
+    "count": 74,
+    "strictShape": false
+  },
+  {
+    "id": "superhero-team",
+    "text": "Назови команду супергероев, злодеев или культовый отряд из комиксов, кино и игр",
+    "count": 90,
+    "strictShape": false
+  },
+  {
+    "id": "billionaire-tycoon",
+    "text": "Назови известного миллиардера, предпринимателя или бизнес-магната",
+    "count": 111,
+    "strictShape": false
+  },
+  {
+    "id": "famous-volcano",
+    "text": "Назови известный вулкан на Земле (действующий или потухший)",
+    "count": 103,
+    "strictShape": false
+  },
+  {
+    "id": "famous-bridge",
+    "text": "Назови известный мост в России или мире",
+    "count": 99,
+    "strictShape": false
+  },
+  {
+    "id": "country-no-a",
+    "text": "Назови страну мира, в русском названии которой НЕТ буквы А",
+    "count": 50,
+    "strictShape": true
+  },
+  {
+    "id": "olympic-host-city",
+    "text": "Назови город, который принимал летние или зимние Олимпийские игры",
+    "count": 46,
+    "strictShape": false
+  },
+  {
+    "id": "world-museum",
+    "text": "Назови известный музей или картинную галерею мира",
+    "count": 100,
+    "strictShape": false
+  },
+  {
+    "id": "russia-river",
+    "text": "Назови реку, протекающую по территории России",
+    "count": 110,
+    "strictShape": false
+  },
+  {
+    "id": "world-airport",
+    "text": "Назови известный аэропорт мира или России",
+    "count": 96,
+    "strictShape": false
+  },
+  {
+    "id": "famous-square",
+    "text": "Назови известную площадь, проспект или улицу в России или мире",
+    "count": 95,
+    "strictShape": false
+  },
+  {
+    "id": "island-country",
+    "text": "Назови островное государство мира",
+    "count": 50,
+    "strictShape": false
+  },
+  {
+    "id": "world-national-park",
+    "text": "Назови известный национальный парк или природный заповедник",
+    "count": 96,
+    "strictShape": false
+  },
+  {
+    "id": "card-game",
+    "text": "Назови карточную игру или пасьянс",
+    "count": 95,
+    "strictShape": false
+  },
+  {
+    "id": "chess-term",
+    "text": "Назови шахматную фигуру, дебют или шахматный термин",
+    "count": 99,
+    "strictShape": false
+  },
+  {
+    "id": "knot-type",
+    "text": "Назови вид узла (морской, туристический, галстучный или бытовой)",
+    "count": 82,
+    "strictShape": false
+  },
+  {
+    "id": "coffee-drink",
+    "text": "Назови кофейный напиток или способ заваривания кофе",
+    "count": 86,
+    "strictShape": false
+  },
+  {
+    "id": "milk-dairy",
+    "text": "Назови молочный или кисломолочный продукт (кроме сыров)",
+    "count": 88,
+    "strictShape": false
+  },
+  {
+    "id": "ice-cream-flavor",
+    "text": "Назови популярный вкус мороженого, жвачки или лимонада",
+    "count": 96,
+    "strictShape": false
+  },
+  {
+    "id": "kitchen-spice-mix",
+    "text": "Назови вид солёности, маринада, варенья или заготовки на зиму",
+    "count": 89,
+    "strictShape": false
+  },
+  {
+    "id": "bathroom-item",
+    "text": "Назови предмет, который обычно стоит или лежит в ванной комнате",
+    "count": 98,
+    "strictShape": false
+  },
+  {
+    "id": "repair-job",
+    "text": "Назови профессию или мастера, который что-то чинит, строит или ремонтирует",
+    "count": 89,
+    "strictShape": false
+  },
+  {
+    "id": "road-sign-term",
+    "text": "Назови дорожный знак, элемент дороги или термин из ПДД",
+    "count": 95,
+    "strictShape": false
+  },
+  {
+    "id": "human-eye-part",
+    "text": "Назови часть человеческого глаза или термин из офтальмологии",
+    "count": 79,
+    "strictShape": false
+  },
+  {
+    "id": "cloud-type",
+    "text": "Назови вид облаков, осадков или ветра",
+    "count": 81,
+    "strictShape": false
+  },
+  {
+    "id": "metal-alloy",
+    "text": "Назови металл или сплав (железо, бронза, титан и др.)",
+    "count": 93,
+    "strictShape": false
+  },
+  {
+    "id": "operating-system",
+    "text": "Назови операционную систему (для ПК, смартфонов или серверов)",
+    "count": 90,
+    "strictShape": false
+  },
+  {
+    "id": "computer-component",
+    "text": "Назови комплектующую ПК, разъём или аппаратный компонент",
+    "count": 92,
+    "strictShape": false
+  },
+  {
+    "id": "prehistoric-epoch",
+    "text": "Назови геологическую эру, период или историческую эпоху",
+    "count": 84,
+    "strictShape": false
+  },
+  {
+    "id": "plant-houseplant",
+    "text": "Назови комнатное растение или суккулент",
+    "count": 91,
+    "strictShape": false
+  },
+  {
+    "id": "dog-working-role",
+    "text": "Назови животное, которое впадает в спячку или ведёт ночной образ жизни",
+    "count": 90,
+    "strictShape": false
+  },
+  {
+    "id": "human-sense-reflex",
+    "text": "Назови кость или сустав человеческого тела",
+    "count": 83,
+    "strictShape": false
+  },
+  {
+    "id": "unit-of-time",
+    "text": "Назови единицу измерения времени или календарный период",
+    "count": 78,
+    "strictShape": false
+  },
+  {
+    "id": "tv-game-show",
+    "text": "Назови известную телевикторину или игровое телешоу (российское или мировое)",
+    "count": 87,
+    "strictShape": false
+  },
+  {
+    "id": "movie-quote-ru",
+    "text": "Назови крылатую фразу из советского или российского кино",
+    "count": 86,
+    "strictShape": false
+  },
+  {
+    "id": "dota-lol-hero",
+    "text": "Назови героя или чемпиона из Dota 2 или League of Legends",
+    "count": 109,
+    "strictShape": false
+  },
+  {
+    "id": "tarot-card",
+    "text": "Назови карту Таро (Старший Аркан) или знак зодиака",
+    "count": 36,
+    "strictShape": false
+  },
+  {
+    "id": "musical-note-chord",
+    "text": "Назови музыкальный коллектив или оркестровый состав (дуэт, квартет, хор и др.)",
+    "count": 70,
+    "strictShape": false
+  },
+  {
+    "id": "book-bestseller-ru",
+    "text": "Назови известную детскую книгу или сказочную повесть",
+    "count": 90,
+    "strictShape": false
+  },
+  {
+    "id": "word-starts-ends-vowel",
+    "text": "Назови существительное от 5 букв, которое начинается и заканчивается на гласную",
+    "count": 95,
+    "strictShape": true
+  },
+  {
+    "id": "word-no-e-a",
+    "text": "Назови существительное от 5 букв без букв А и Е",
+    "count": 100,
+    "strictShape": true
+  },
+  {
+    "id": "color-in-name",
+    "text": "Назови предмет, животное или явление, в названии которого есть цвет",
+    "count": 93,
+    "strictShape": false
+  },
+  {
+    "id": "ship-boat-type",
+    "text": "Назови тип корабля, судна или лодки (исторический или современный)",
+    "count": 92,
+    "strictShape": false
   }
 ].map((p) => Object.assign(p, { answers: null }));
 
