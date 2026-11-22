@@ -1135,7 +1135,7 @@
   {
     "id": "movie-villain",
     "text": "Назови известного злодея из фильмов, сериалов или мультфильмов",
-    "count": 227,
+    "count": 235,
     "strictShape": false
   },
   {
@@ -1171,7 +1171,7 @@
   {
     "id": "game-console",
     "text": "Назови игровую приставку или консоль (любого поколения)",
-    "count": 116,
+    "count": 119,
     "strictShape": false
   },
   {
@@ -1213,7 +1213,7 @@
   {
     "id": "game-studio",
     "text": "Назови известную студию разработки или издателя видеоигр",
-    "count": 180,
+    "count": 190,
     "strictShape": false
   },
   {
@@ -1381,7 +1381,7 @@
   {
     "id": "internet-meme",
     "text": "Назови известный интернет-мем или мемного персонажа",
-    "count": 185,
+    "count": 196,
     "strictShape": false
   },
   {
@@ -1447,7 +1447,7 @@
   {
     "id": "food-drink-brand",
     "text": "Назови известный бренд продуктов, сладостей или напитков из супермаркета",
-    "count": 196,
+    "count": 211,
     "strictShape": false
   },
   {
@@ -1465,7 +1465,7 @@
   {
     "id": "hockey-nba-f1-team",
     "text": "Назови команду НХЛ, КХЛ, НБА или Формулы-1",
-    "count": 167,
+    "count": 169,
     "strictShape": false
   },
   {
@@ -1573,13 +1573,13 @@
   {
     "id": "tv-series-char",
     "text": "Назови культового персонажа зарубежного или российского сериала",
-    "count": 289,
+    "count": 305,
     "strictShape": false
   },
   {
     "id": "famous-singer-solo",
     "text": "Назови легендарного сольного певца или певицу мира",
-    "count": 306,
+    "count": 354,
     "strictShape": false
   },
   {
@@ -1705,7 +1705,7 @@
   {
     "id": "famous-author",
     "text": "Назови известного русского или зарубежного писателя / поэта",
-    "count": 259,
+    "count": 281,
     "strictShape": false
   },
   {
@@ -1729,19 +1729,19 @@
   {
     "id": "tv-show-90s-2000s",
     "text": "Назови культовую телепередачу или телешоу 90-х и 2000-х",
-    "count": 181,
+    "count": 197,
     "strictShape": false
   },
   {
     "id": "nostalgia-snack-90s",
     "text": "Назови культовую сладость, жвачку, еду или напиток из детства 90-х–2000-х",
-    "count": 189,
+    "count": 202,
     "strictShape": false
   },
   {
     "id": "old-internet-2000s",
     "text": "Назови культовый сайт, программу или явление старого интернета 90-х–2000-х",
-    "count": 181,
+    "count": 196,
     "strictShape": false
   },
   {
@@ -1759,13 +1759,13 @@
   {
     "id": "nostalgia-cartoon-series-90s",
     "text": "Назови культовый мультсериал или сериал из детства 90-х и 2000-х",
-    "count": 214,
+    "count": 223,
     "strictShape": false
   },
   {
     "id": "famous-athlete",
     "text": "Назови легендарного спортсмена (футбол, бокс, ММА, теннис, Ф1, баскетбол, хоккей и др.)",
-    "count": 257,
+    "count": 289,
     "strictShape": false
   }
 ].map((p) => Object.assign(p, { answers: null }));
@@ -1778,7 +1778,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261122a`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261122b`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
