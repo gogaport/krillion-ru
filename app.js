@@ -1764,6 +1764,13 @@
       this.img = imgEl;
       this.x = 40;
       this.y = 200;
+      this.prevX = 40;
+      this.facing = 1; // 1 = left/default, -1 = flipped right
+      this.lastBubbleTs = 0;
+      this.bubbleEl = document.getElementById('mascot-bubble');
+      this.bubbleTimer = null;
+      this.spriteWrap = this.el.querySelector('.ds-mascot-sprite');
+      this.panicActive = false;
       this.applyBuddy();
       this.el.addEventListener('click', () => this.poke());
       this.el.addEventListener('keydown', (e) => {
@@ -1784,13 +1791,72 @@
       this.el.classList.toggle('gold', !!buddy.gold);
     }
 
+    say(text, ms = 1400) {
+      if (!this.bubbleEl || !text) return;
+      clearTimeout(this.bubbleTimer);
+      this.bubbleEl.textContent = text;
+      this.bubbleEl.classList.add('show');
+      this.bubbleTimer = setTimeout(() => {
+        this.bubbleEl.classList.remove('show');
+      }, ms);
+    }
+
+    playAnim(cls) {
+      this.img.classList.remove('jet', 'chomp', 'celebrate', 'startle');
+      void this.img.offsetWidth;
+      if (cls) this.img.classList.add(cls);
+    }
+
+    setPanic(on) {
+      if (this.panicActive === !!on) return;
+      this.panicActive = !!on;
+      this.el.classList.toggle('panic', this.panicActive);
+      if (this.panicActive) {
+        this.say('БЫСТРЕЕ!', 1100);
+      }
+    }
+
+    react(kind, color) {
+      const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
+      const fxColor = color || buddy.color;
+      if (kind === 'krillion') {
+        this.playAnim('celebrate');
+        ocean.spawnBurst(this.x + 32, this.y + 32, '#ffd166', 20);
+        this.say('КРИЛЛИОН!!', 1900);
+      } else if (kind === 'deepcut') {
+        this.playAnim('celebrate');
+        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 15);
+        this.say('ГЛУБОКО!', 1600);
+      } else if (kind === 'rare') {
+        this.playAnim('jet');
+        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 12);
+        this.say('РЕДКОСТЬ!', 1400);
+      } else if (kind === 'schooler') {
+        this.playAnim('jet');
+        ocean.spawnBurst(this.x + 32, this.y + 32, fxColor, 8);
+        this.say('ХОРОШО!', 1200);
+      } else if (kind === 'tooclever') {
+        this.playAnim('chomp');
+        this.say('ХИТРО!', 1200);
+      } else if (kind === 'plankton') {
+        this.playAnim('chomp');
+        this.say('БУЛЬК...', 1100);
+      } else if (kind === 'miss') {
+        this.playAnim('startle');
+        this.say('ОЙ!', 1200);
+      } else if (kind === 'reject') {
+        this.playAnim('startle');
+        this.say('ХМ?', 900);
+      }
+    }
+
     poke() {
       sfx.mascot();
-      this.img.classList.remove('jet', 'chomp');
-      void this.img.offsetWidth;
-      this.img.classList.add(Math.random() > 0.45 ? 'jet' : 'chomp');
+      this.playAnim(Math.random() > 0.45 ? 'jet' : 'chomp');
       const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
       ocean.spawnBurst(this.x + 32, this.y + 32, buddy.color, 10);
+      const lines = ['БУЛЬК!', 'ГЛУБЖЕ!', 'ЩЁЛК!', 'НЯМ!', 'В БЕЗДНУ!'];
+      this.say(lines[Math.floor(Math.random() * lines.length)], 1100);
     }
 
     update(ts, phase) {
@@ -1798,6 +1864,7 @@
       const w = vv ? vv.width : window.innerWidth;
       const h = vv ? vv.height : window.innerHeight;
       if (phase === 'done') {
+        this.setPanic(false);
         if (w < 560) {
           this.el.style.opacity = '0';
           return;
@@ -1807,6 +1874,7 @@
         this.x = Math.max(w - 110, w * 0.78);
         this.y = 115 + Math.sin(ts * 0.002) * 8;
         this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(-6deg)`;
+        if (this.spriteWrap) this.spriteWrap.style.transform = '';
         return;
       }
       this.el.style.opacity = '';
@@ -1814,10 +1882,12 @@
         this.x = phase === 'intro' ? Math.round(w - 108) : 28;
         this.y = phase === 'intro' ? Math.round(h * 0.62) : Math.round(h - 178);
         this.el.style.transform = `translate3d(${this.x}px, ${this.y}px, 0) rotate(-4deg)`;
+        if (this.spriteWrap) this.spriteWrap.style.transform = '';
         return;
       }
       const t = ts * 0.0008;
       if (phase === 'intro') {
+        this.setPanic(false);
         const cx = w * 0.72;
         const cy = h * 0.62;
         const rx = Math.min(w * 0.14, 110);
@@ -1826,13 +1896,45 @@
         this.y = Math.max(76, Math.min(h - 165, cy + Math.sin(t * 1.6) * ry));
         const rot = Math.sin(t * 2.1) * 11;
         this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
+        if (this.spriteWrap) this.spriteWrap.style.transform = (this.x - this.prevX) > 0.05 ? 'scaleX(-1)' : '';
+        this.prevX = this.x;
         return;
       }
-      // During preview/answering/feedback, stay safely at bottom-left near kelp so prompt cards never collide
-      this.x = Math.max(18, Math.min(82, 40 + Math.cos(t * 1.2) * 14));
-      this.y = Math.max(h * 0.56, Math.min(h - 172, h - 188 + Math.sin(t * 1.7) * 18));
-      const rot = Math.sin(t * 2.1) * 10;
+      // During preview/answering/feedback, swim actively around the safe perimeter so the shrimp feels alive!
+      const speedMul = this.panicActive ? 2.3 : 1;
+      const st = ts * 0.00075 * speedMul;
+      let targetX, targetY;
+      if (w >= 860) {
+        // Desktop: gracefully cruise across left & right lanes and sweep along the bottom arc
+        const sweep = Math.sin(st * 0.55); // -1..1
+        const sideSpan = Math.min(w * 0.42, 420);
+        targetX = w * 0.5 + sweep * sideSpan - 33;
+        // Dip lower when crossing center so it never blocks the prompt card
+        const centerFactor = 1 - Math.min(1, Math.abs(sweep) * 1.45);
+        const baseY = h * 0.56 + centerFactor * (h * 0.27);
+        targetY = baseY + Math.sin(st * 1.9) * 34;
+      } else {
+        // Mobile/tablet: swim widely along the lower-mid water band
+        targetX = w * 0.5 + Math.sin(st * 0.85) * (w * 0.36) - 28;
+        targetY = h - 168 + Math.sin(st * 2.1) * 24;
+      }
+      this.x = Math.max(14, Math.min(w - 80, targetX));
+      this.y = Math.max(88, Math.min(h - 110, targetY));
+      const dx = this.x - this.prevX;
+      if (Math.abs(dx) > 0.08) this.facing = dx > 0 ? -1 : 1;
+      this.prevX = this.x;
+      const rot = Math.sin(st * 2.4) * (this.panicActive ? 15 : 10);
       this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
+      if (this.spriteWrap) {
+        this.spriteWrap.style.transform = this.facing === -1 ? 'scaleX(-1)' : '';
+      }
+      // Periodic tiny bubble trail while swimming
+      const bubbleInterval = this.panicActive ? 260 : 1100;
+      if (ts - this.lastBubbleTs > bubbleInterval) {
+        this.lastBubbleTs = ts;
+        const buddy = DATA.BUDDIES.find((b) => b.id === appState.buddyId) || DATA.BUDDIES[0];
+        ocean.spawnBurst(this.x + 32, this.y + 34, buddy.color, this.panicActive ? 3 : 2);
+      }
     }
   }
 
@@ -2312,6 +2414,7 @@
         answerForm.classList.add('hot');
         appEl.classList.add('hot');
         timerDigitsEl.classList.add('hot');
+        mascot.setPanic(true);
         const urg = ((5000 - remMs) / 5000).toFixed(3);
         appEl.style.setProperty('--ds-urgency', urg);
       }
@@ -2329,6 +2432,7 @@
 
   function handleTimeout() {
     clearTimers();
+    mascot.setPanic(false);
     appEl.style.setProperty('--ds-urgency', '0');
     appEl.classList.remove('hot');
     answerForm.classList.remove('hot');
@@ -2438,11 +2542,13 @@
       correctionBoxEl.hidden = true;
       correctionBoxEl.innerHTML = '';
       showReject(raw);
+      mascot.react('reject');
     }
   });
 
   function acceptAnswer(answerObj) {
     clearTimers();
+    mascot.setPanic(false);
     answerInput.blur();
     answerInput.disabled = true;
     diveBtn.disabled = true;
@@ -2462,6 +2568,7 @@
 
     const tierId = answerObj ? answerObj.tier : 'miss';
     const tier = DATA.TIERS[tierId];
+    mascot.react(tierId, tier.color);
     const prompt = getCurrentPrompt();
 
     const startDepthM = session.totalDepthM;

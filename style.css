@@ -991,6 +991,69 @@ a {
   100% { transform: translate(0) scale(1) rotate(0); }
 }
 
+.ds-mascot img.celebrate {
+  animation: 0.95s cubic-bezier(.22, .85, .32, 1) ds-celebrate;
+}
+
+@keyframes ds-celebrate {
+  0% { transform: translateY(0) scale(1) rotate(0deg); }
+  20% { transform: translateY(10px) scale(1.25, 0.72) rotate(-12deg); }
+  50% { transform: translateY(-56px) scale(1.18) rotate(360deg); }
+  74% { transform: translateY(-18px) scale(0.94, 1.08) rotate(372deg); }
+  88% { transform: translateY(-28px) scale(1.08) rotate(354deg); }
+  100% { transform: translateY(0) scale(1) rotate(360deg); }
+}
+
+.ds-mascot img.startle {
+  animation: 0.55s cubic-bezier(.2, .8, .3, 1) ds-startle;
+}
+
+@keyframes ds-startle {
+  0% { transform: translate(0) scale(1) rotate(0deg); }
+  18% { transform: translate(-14px, -10px) scale(0.86, 1.18) rotate(-16deg); }
+  42% { transform: translate(8px, -4px) scale(1.08, 0.92) rotate(12deg); }
+  68% { transform: translate(-5px, 2px) scale(0.97) rotate(-6deg); }
+  100% { transform: translate(0) scale(1) rotate(0deg); }
+}
+
+.ds-mascot.panic .ds-mascot-sprite img {
+  animation: 0.24s linear infinite ds-panic;
+  filter: drop-shadow(0 0 16px rgba(255, 93, 143, 0.95));
+}
+
+@keyframes ds-panic {
+  0%, 100% { transform: translate(0, 0) rotate(-6deg); }
+  25% { transform: translate(-3px, -3px) rotate(8deg); }
+  50% { transform: translate(3px, 2px) rotate(-8deg); }
+  75% { transform: translate(-2px, 3px) rotate(6deg); }
+}
+
+.ds-mascot-bubble {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translate(-50%, 6px) scale(0.85);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  padding: 4px 8px;
+  font-family: var(--ds-font-px, monospace);
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(6, 16, 30, 0.92);
+  border: 2px solid var(--dsm-color, #ff5d8f);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(.2, .9, .3, 1);
+  z-index: 2;
+}
+
+.ds-mascot-bubble.show {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+}
+
 /* Intro Bottom Controls (krillion.io parity) */
 .ds-intro {
   position: fixed;
