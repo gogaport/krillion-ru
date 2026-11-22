@@ -2094,15 +2094,13 @@
       beginBtn.classList.remove('secondary');
     } else {
       session.prompts = buildEndlessDeck();
-      const seenCount = new Set(appState.seenEndlessIds || []).size;
-      const freshLeft = Math.max(1, DATA.PROMPTS.length - seenCount);
       heroTaglineEl.textContent = 'БЕСКОНЕЧНОЕ ПОГРУЖЕНИЕ';
       const totalTopics = DATA.PROMPTS.length;
       const m10 = totalTopics % 10;
       const m100 = totalTopics % 100;
       const topicsWord = (m10 === 1 && m100 !== 11) ? 'тема' : (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) ? 'темы' : 'тем';
       heroSublineEl.textContent = `${totalTopics} ${topicsWord} без повторов · без ограничений · всплывайте в любой момент`;
-      introDiveNumEl.textContent = `БЕСКОНЕЧНЫЙ · ${freshLeft} НОВЫХ ТЕМ`;
+      introDiveNumEl.textContent = `БЕСКОНЕЧНЫЙ · ${totalTopics} ${topicsWord.toUpperCase()}`;
       metaDailyBtn.hidden = false;
       metaEndlessBtn.hidden = true;
       beginBtn.textContent = '▼ НАЧАТЬ ПОГРУЖЕНИЕ ▼';
