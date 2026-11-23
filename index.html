@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#050a14">
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
   <link rel="alternate icon" href="favicon.ico?v=2">
-  <link rel="stylesheet" href="style.css?v=20261121c">
+  <link rel="stylesheet" href="style.css?v=20261123a">
 </head>
 <body>
   <div id="app" class="ds-root" data-world="ocean" data-phase="intro">
@@ -450,17 +450,30 @@
 
           <div class="ds-bug-field">
             <label class="ds-bug-label" for="bug-desc">КОММЕНТАРИЙ / ПОДРОБНОСТИ</label>
-            <textarea id="bug-desc" class="ds-bug-textarea" rows="3" placeholder="Что пошло не так или почему этот ответ должен засчитываться…" maxlength="800"></textarea>
+            <textarea id="bug-desc" class="ds-bug-textarea" rows="3" placeholder="Что пошло не так, почему ответ должен засчитываться или какая у вас идея…" maxlength="1000"></textarea>
           </div>
 
+          <div class="ds-bug-field">
+            <label class="ds-bug-label" for="bug-contact">КОНТАКТ ДЛЯ ОТВЕТА (НЕОБЯЗАТЕЛЬНО)</label>
+            <input id="bug-contact" class="ds-bug-input" type="text" placeholder="@telegram или email" maxlength="120">
+          </div>
+
+          <!-- Honeypot field against spam bots -->
+          <div class="ds-bug-hp" aria-hidden="true">
+            <label for="bug-hp">Website</label>
+            <input id="bug-hp" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <p id="bug-status" class="ds-bug-status" role="status" aria-live="polite" hidden></p>
+
           <div class="ds-bug-actions">
-            <button type="submit" class="ds-action-btn btn-descend ds-bug-submit">СОЗДАТЬ ТИКЕТ НА GITHUB ↗</button>
+            <button type="submit" id="bug-submit-btn" class="ds-action-btn btn-descend ds-bug-submit">ОТПРАВИТЬ В TELEGRAM ✈</button>
             <div class="ds-bug-subactions">
               <button type="button" id="bug-copy-btn" class="ds-action-btn ds-bug-sec">СКОПИРОВАТЬ ТЕКСТ</button>
               <a id="bug-discord-link" class="ds-action-btn ds-bug-sec" href="https://discord.com/users/445629054708613141" target="_blank" rel="noopener">DISCORD АВТОРА ↗</a>
             </div>
           </div>
-          <p id="bug-hint" class="ds-bug-hint">При нажатии на «Discord автора» отчёт автоматически копируется в буфер обмена — останется только вставить (Ctrl+V) в личку.</p>
+          <p id="bug-hint" class="ds-bug-hint">Сообщение придёт напрямую автору в Telegram-бота. Если хотите получить ответ, укажите свой @username или email.</p>
         </form>
       </div>
     </div>

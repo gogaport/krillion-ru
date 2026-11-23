@@ -3004,6 +3004,43 @@ a {
   padding: 12px 14px 10px;
 }
 
+.ds-bug-submit:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.ds-bug-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ds-bug-status {
+  margin: 2px 0 0;
+  padding: 9px 12px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.ds-bug-status.is-ok {
+  background: rgba(56, 211, 159, 0.14);
+  border-color: rgba(56, 211, 159, 0.45);
+  color: #8bf3cc;
+}
+
+.ds-bug-status.is-err {
+  background: rgba(255, 92, 114, 0.14);
+  border-color: rgba(255, 92, 114, 0.45);
+  color: #ff9eab;
+}
+
 .ds-bug-subactions {
   display: grid;
   grid-template-columns: 1fr 1fr;

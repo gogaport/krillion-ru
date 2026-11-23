@@ -3411,10 +3411,31 @@
     });
   }
 
+  // URL вашего Cloudflare Worker (см. инструкцию в bot/README.md)
+  const FEEDBACK_ENDPOINT = 'https://krillion-feedback-bot.yehorsemenyuta.workers.dev/feedback';
+  const FEEDBACK_COOLDOWN_MS = 30_000;
+  let lastFeedbackSentAt = 0;
+
+  function setBugStatus(message, type) {
+    const statusEl = document.getElementById('bug-status');
+    if (!statusEl) return;
+    if (!message) {
+      statusEl.hidden = true;
+      statusEl.textContent = '';
+      statusEl.classList.remove('is-ok', 'is-err');
+      return;
+    }
+    statusEl.textContent = message;
+    statusEl.classList.toggle('is-ok', type === 'ok');
+    statusEl.classList.toggle('is-err', type === 'err');
+    statusEl.hidden = false;
+  }
+
   function openBugReportModal(prefill) {
     const promptEl = document.getElementById('bug-prompt');
     const ansEl = document.getElementById('bug-answer');
     const descEl = document.getElementById('bug-desc');
+    const hpEl = document.getElementById('bug-hp');
 
     let defaultPrompt = '';
     let defaultAns = '';
@@ -3440,6 +3461,8 @@
     if (promptEl) promptEl.value = prefill && prefill.promptText !== undefined ? prefill.promptText : defaultPrompt;
     if (ansEl) ansEl.value = prefill && prefill.answerText !== undefined ? prefill.answerText : defaultAns;
     if (descEl) descEl.value = (prefill && prefill.descText) || '';
+    if (hpEl) hpEl.value = '';
+    setBugStatus('');
 
     openModal('bugreport-backdrop');
   }
@@ -3449,6 +3472,8 @@
     const promptEl = document.getElementById('bug-prompt');
     const ansEl = document.getElementById('bug-answer');
     const descEl = document.getElementById('bug-desc');
+    const contactEl = document.getElementById('bug-contact');
+    const hpEl = document.getElementById('bug-hp');
 
     const category = catEl ? catEl.value : 'missing-answer';
     const categoryLabels = {
@@ -3458,9 +3483,15 @@
       'suggestion': 'Предложение / идея'
     };
     const catLabel = categoryLabels[category] || 'Обратная связь';
-    const promptVal = (promptEl ? promptEl.value.trim() : '') || 'Не указан';
-    const ansVal = (ansEl ? ansEl.value.trim() : '') || '—';
-    const descVal = (descEl ? descEl.value.trim() : '') || '—';
+    const rawPrompt = promptEl ? promptEl.value.trim() : '';
+    const rawAnswer = ansEl ? ansEl.value.trim() : '';
+    const rawDesc = descEl ? descEl.value.trim() : '';
+    const rawContact = contactEl ? contactEl.value.trim() : '';
+    const rawWebsite = hpEl ? hpEl.value.trim() : '';
+
+    const promptVal = rawPrompt || 'Не указан';
+    const ansVal = rawAnswer || '—';
+    const descVal = rawDesc || '—';
     const modeInfo = `${session.mode} (dive #${session.diveNumber || '—'}, phase: ${session.phase})`;
 
     const titleParts = [`[${catLabel}]`];
@@ -3469,7 +3500,7 @@
     else if (descVal !== '—') titleParts.push(`— ${descVal.slice(0, 60)}`);
     const title = titleParts.join(' ');
 
-    const body = [
+    const bodyLines = [
       `### Тип обращения`,
       catLabel,
       ``,
@@ -3481,12 +3512,32 @@
       ``,
       `### Комментарий`,
       descVal,
+    ];
+    if (rawContact) {
+      bodyLines.push(``, `### Контакт для ответа`, rawContact);
+    }
+    bodyLines.push(
       ``,
       `---`,
       `*Контекст: режим \`${modeInfo}\` · экран \`${window.innerWidth}x${window.innerHeight}\`*`
-    ].join('\n');
+    );
+    const body = bodyLines.join('\n');
 
-    return { title, body, category };
+    return {
+      title,
+      body,
+      category,
+      raw: {
+        category,
+        prompt: rawPrompt,
+        answer: rawAnswer,
+        description: rawDesc,
+        contact: rawContact,
+        website: rawWebsite,
+        modeInfo: `${modeInfo} · ${window.innerWidth}x${window.innerHeight}`,
+        pageUrl: window.location.href,
+      },
+    };
   }
 
   function openModal(id) {
@@ -3752,12 +3803,67 @@
 
   const bugForm = document.getElementById('bugreport-form');
   if (bugForm) {
-    bugForm.addEventListener('submit', (e) => {
+    bugForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       sfx.click();
-      const { title, body } = buildBugReportPayload();
-      const url = `https://github.com/gogaport/krillion-ru/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-      window.open(url, '_blank', 'noopener');
+
+      const submitBtn = document.getElementById('bug-submit-btn');
+      const { raw } = buildBugReportPayload();
+
+      if (!raw.description && !raw.prompt && !raw.answer) {
+        setBugStatus('Опишите проблему, предложение или укажите вопрос.', 'err');
+        return;
+      }
+
+      const now = Date.now();
+      const leftMs = FEEDBACK_COOLDOWN_MS - (now - lastFeedbackSentAt);
+      if (leftMs > 0) {
+        const secs = Math.ceil(leftMs / 1000);
+        setBugStatus(`Подождите ${secs} сек. перед следующей отправкой.`, 'err');
+        return;
+      }
+
+      if (!FEEDBACK_ENDPOINT) {
+        setBugStatus(
+          'Telegram-бот ещё не подключён (не указан FEEDBACK_ENDPOINT в app.js). Вы можете скопировать текст ниже.',
+          'err'
+        );
+        return;
+      }
+
+      const origText = submitBtn ? submitBtn.textContent : '';
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'ОТПРАВКА…';
+      }
+      setBugStatus('');
+
+      try {
+        const resp = await fetch(FEEDBACK_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(raw),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || 'Не удалось отправить сообщение.');
+        }
+
+        lastFeedbackSentAt = Date.now();
+        setBugStatus('Отправлено в Telegram! Спасибо за обратную связь ✓', 'ok');
+        const descEl = document.getElementById('bug-desc');
+        if (descEl) descEl.value = '';
+      } catch (err) {
+        setBugStatus(
+          `${err?.message || 'Ошибка сети.'} Попробуйте позже или скопируйте текст.`,
+          'err'
+        );
+      } finally {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = origText || 'ОТПРАВИТЬ В TELEGRAM ✈';
+        }
+      }
     });
   }
 

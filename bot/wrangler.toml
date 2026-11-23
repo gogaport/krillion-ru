@@ -1,0 +1,9 @@
+name = "krillion-feedback-bot"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Секреты НЕ хранятся в этом файле.
+# Задайте их командой:
+#   npx wrangler secret put BOT_TOKEN
+#   npx wrangler secret put ADMIN_CHAT_ID
+# или через Cloudflare Dashboard -> Workers -> Settings -> Variables and Secrets.
