@@ -1322,7 +1322,18 @@
         const boatX = Math.round(this.width * 0.29);
         const boatWaveY = waterlineScreenY + Math.sin(boatX * 0.014 + t * 1.9) * 5 + Math.cos(boatX * 0.028 - t * 1.2) * 2.5;
         const slope = Math.cos(boatX * 0.014 + t * 1.9) * 0.065;
-        this.drawPixelBoat(ctx, boatX, boatWaveY + 2, slope, t);
+        let pulseOffset = 0;
+        if (this.boatTapPulse > 0.01) {
+          pulseOffset = Math.sin(this.boatTapPulse * Math.PI) * 5;
+          this.boatTapPulse *= 0.86;
+        } else {
+          this.boatTapPulse = 0;
+        }
+        const rect = this.sea.getBoundingClientRect();
+        this.boatBounds = { x: rect.left + boatX, y: rect.top + boatWaveY + 2, w: 180, h: 130 };
+        this.drawPixelBoat(ctx, boatX, boatWaveY + 2 + pulseOffset, slope, t);
+      } else {
+        this.boatBounds = null;
       }
 
       // 4. Pixel Kelp Silhouettes + rising oxygen micro-bubbles (200m - 700m depth band)
@@ -3632,13 +3643,22 @@
       if (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select, label, .ds-dialog')) return;
 
       const b = ocean.boatBounds;
-      const hitX = Math.abs(e.clientX - b.x) <= b.w * 0.55;
-      const hitY = e.clientY >= b.y - 76 && e.clientY <= b.y + 26;
+      const hitX = Math.abs(e.clientX - b.x) <= 95;
+      const hitY = e.clientY >= b.y - 95 && e.clientY <= b.y + 35;
       if (!hitX || !hitY) return;
 
       boatTapCount += 1;
       clearTimeout(boatTapTimer);
-      boatTapTimer = setTimeout(() => { boatTapCount = 0; }, 4000);
+      boatTapTimer = setTimeout(() => { boatTapCount = 0; }, 4500);
+
+      // Subtle visual feedback: boat bounce + tiny sonar ripple
+      ocean.boatTapPulse = 1;
+      const ping = document.createElement('span');
+      ping.className = 'ds-boat-ping';
+      ping.style.left = `${e.clientX}px`;
+      ping.style.top = `${e.clientY}px`;
+      document.body.appendChild(ping);
+      setTimeout(() => ping.remove(), 480);
 
       if (boatTapCount >= 10) {
         boatTapCount = 0;
