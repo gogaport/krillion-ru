@@ -2015,8 +2015,8 @@
     document.documentElement.classList.toggle('colorblind', !!appState.settings.colorblind);
     document.documentElement.classList.toggle('lowpower', !!appState.settings.lowPower);
     const muted = !!appState.settings.muted;
-    muteIconOn.hidden = muted;
-    muteIconOff.hidden = !muted;
+    muteIconOn.toggleAttribute('hidden', muted);
+    muteIconOff.toggleAttribute('hidden', !muted);
     muteBtn.setAttribute('aria-pressed', String(muted));
     muteBtn.setAttribute('aria-label', muted ? 'Включить звук' : 'Выключить звук');
 

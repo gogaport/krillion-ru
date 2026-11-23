@@ -883,6 +883,15 @@ a {
 
 .ds-menu-btn { top: 12px; left: 10px; }
 .ds-mute { top: 12px; right: 10px; }
+.ds-mute[aria-pressed="true"] {
+  color: var(--color-lumen-pink);
+  border-color: rgba(255, 93, 143, 0.55);
+}
+.ds-mute[aria-pressed="true"]:hover {
+  color: #ff8fb1;
+  border-color: var(--color-lumen-pink);
+  box-shadow: 0 0 0 2px #050a14e6, 0 0 12px rgba(255, 93, 143, 0.35), inset 0 1px 0 rgba(255, 93, 143, 0.35);
+}
 .ds-settings-btn { top: 46px; right: 10px; }
 .ds-wardrobe-btn { top: 80px; right: 10px; }
 
