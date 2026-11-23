@@ -3178,6 +3178,7 @@ html.kb-open .ds-correction {
 .ds-codex-dialog {
   max-width: 720px;
   width: 94vw;
+  height: 86vh;
   max-height: 86vh;
   display: flex;
   flex-direction: column;
@@ -3188,6 +3189,7 @@ html.kb-open .ds-correction {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .ds-codex-toolbar .ds-catch-search {
@@ -3206,18 +3208,21 @@ html.kb-open .ds-correction {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: block;
   padding-right: 4px;
 }
 
 .ds-codex-item {
+  margin-bottom: 8px;
   border: 1px solid rgba(77, 227, 255, 0.14);
   background: rgba(8, 18, 34, 0.72);
   border-radius: 6px;
   overflow: hidden;
   transition: border-color 0.15s;
+}
+
+.ds-codex-item:last-child {
+  margin-bottom: 0;
 }
 
 .ds-codex-item.open {
