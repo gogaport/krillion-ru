@@ -3545,12 +3545,112 @@
     if (id === 'wardrobe-backdrop') renderWardrobe();
     if (id === 'archive-backdrop') renderArchive();
     if (id === 'expeditions-backdrop') renderExpeditions();
+    if (id === 'codex-backdrop') {
+      const searchEl = document.getElementById('codex-search');
+      if (searchEl) searchEl.value = '';
+      renderCodex('');
+      setTimeout(() => { if (searchEl) searchEl.focus(); }, 60);
+    }
     const el = document.getElementById(id);
     if (el) {
       el.hidden = false;
       el.classList.add('open');
     }
   }
+
+  function renderCodex(query = '') {
+    const listEl = document.getElementById('codex-list');
+    const countEl = document.getElementById('codex-count');
+    if (!listEl) return;
+
+    const rawQ = String(query || '').trim().toLowerCase();
+    const normQ = normalizeInput(rawQ);
+    const allPrompts = DATA.PROMPTS || [];
+    const filtered = allPrompts.filter((p) => {
+      if (!rawQ) return true;
+      return normalizeInput(p.text).includes(normQ) || p.id.toLowerCase().includes(rawQ);
+    });
+
+    if (countEl) {
+      countEl.textContent = rawQ
+        ? `Найдено: ${filtered.length} из ${allPrompts.length} тем`
+        : `Всего тем в базе: ${allPrompts.length}`;
+    }
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="ds-codex-empty">Ничего не найдено по этому запросу</div>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map((p, idx) => {
+      const ansCount = typeof p.count === 'number' ? p.count : (p.answers ? p.answers.length : 0);
+      return `
+        <div class="ds-codex-item" data-prompt-id="${escapeHtml(p.id)}">
+          <button type="button" class="ds-codex-row" aria-expanded="false">
+            <span class="ds-codex-num">#${idx + 1}</span>
+            <span class="ds-codex-q">${escapeHtml(p.text)}</span>
+            <span class="ds-codex-meta">${ansCount.toLocaleString('ru-RU')}</span>
+            <span class="ds-codex-chev" aria-hidden="true">▾</span>
+          </button>
+          <div class="ds-codex-drawer ds-catch-drawer" hidden></div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.ds-codex-item').forEach((item) => {
+      const btn = item.querySelector('.ds-codex-row');
+      const drawer = item.querySelector('.ds-codex-drawer');
+      const pid = item.dataset.promptId;
+      btn.addEventListener('click', () => {
+        sfx.click();
+        const opening = drawer.hidden;
+        drawer.hidden = !opening;
+        item.classList.toggle('open', opening);
+        btn.setAttribute('aria-expanded', String(opening));
+        if (opening && !drawer.dataset.loaded) {
+          drawer.dataset.loaded = '1';
+          renderCatchDrawerContent(drawer, pid, null);
+        }
+      });
+    });
+  }
+
+  (function wireSecretBoatCodex() {
+    const searchEl = document.getElementById('codex-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', () => {
+        renderCodex(searchEl.value);
+      });
+    }
+
+    let boatTapCount = 0;
+    let boatTapTimer = null;
+
+    document.addEventListener('click', (e) => {
+      if (!ocean || !ocean.boatBounds) return;
+      if (document.querySelector('.ds-modal-backdrop.open')) return;
+      if (e.target && e.target.closest && e.target.closest('button, a, input, textarea, select, label, .ds-dialog')) return;
+
+      const b = ocean.boatBounds;
+      const hitX = Math.abs(e.clientX - b.x) <= b.w * 0.55;
+      const hitY = e.clientY >= b.y - 76 && e.clientY <= b.y + 26;
+      if (!hitX || !hitY) return;
+
+      boatTapCount += 1;
+      clearTimeout(boatTapTimer);
+      boatTapTimer = setTimeout(() => { boatTapCount = 0; }, 4000);
+
+      if (boatTapCount >= 10) {
+        boatTapCount = 0;
+        clearTimeout(boatTapTimer);
+        if (sfx.krillion) sfx.krillion();
+        else sfx.click();
+        openModal('codex-backdrop');
+      } else {
+        sfx.click();
+      }
+    });
+  })();
 
   function closeAllModals() {
     document.querySelectorAll('.ds-modal-backdrop').forEach((el) => {

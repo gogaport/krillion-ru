@@ -477,9 +477,27 @@
         </form>
       </div>
     </div>
+
+    <!-- Secret Codex Modal (10 taps on the pixel boat) -->
+    <div id="codex-backdrop" class="ds-modal-backdrop" role="presentation" hidden>
+      <div class="ds-dialog ds-codex-dialog" role="dialog" aria-modal="true" aria-labelledby="codex-title">
+        <div class="ds-dialog-head">
+          <div>
+            <p class="ds-dialog-eyebrow">СЕКРЕТНЫЙ АРХИВ КАПИТАНА</p>
+            <h2 id="codex-title" class="ds-dialog-title">База всех вопросов</h2>
+          </div>
+          <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть окно">X</button>
+        </div>
+        <div class="ds-codex-toolbar">
+          <input id="codex-search" type="search" class="ds-catch-search" placeholder="Поиск по вопросам или ID темы…" aria-label="Поиск вопросов">
+          <span id="codex-count" class="ds-codex-count"></span>
+        </div>
+        <div id="codex-list" class="ds-codex-list"></div>
+      </div>
+    </div>
   </div>
 
-  <script src="data.js?v=20261122b"></script>
-  <script src="app.js?v=20261121c"></script>
+  <script src="data.js?v=20261123a"></script>
+  <script src="app.js?v=20261123a"></script>
 </body>
 </html>
