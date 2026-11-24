@@ -3,6 +3,26 @@
   const PX_PER_METER = 2; // 700 pts * 10m = 7000m = 14000px
   const ROUND_SECONDS = 25;
   const STORAGE_KEY = 'krillion_ru_state_v1';
+  const RU_NUM_FMT = new Intl.NumberFormat('ru-RU');
+
+  function restartAnimClass(el, addCls, removeList) {
+    if (!el) return;
+    if (el._animRaf) {
+      cancelAnimationFrame(el._animRaf);
+      el._animRaf = 0;
+    }
+    if (removeList) {
+      for (let i = 0; i < removeList.length; i++) el.classList.remove(removeList[i]);
+    } else if (addCls) {
+      el.classList.remove(addCls);
+    }
+    if (addCls) {
+      el._animRaf = requestAnimationFrame(() => {
+        el._animRaf = 0;
+        el.classList.add(addCls);
+      });
+    }
+  }
 
   const DEFAULT_STATE = {
     settings: {
@@ -622,13 +642,39 @@
     constructor(seaCanvas, foreCanvas, worldEl) {
       this.sea = seaCanvas;
       this.fore = foreCanvas;
-      this.seaCtx = seaCanvas.getContext('2d');
+      this.seaCtx = seaCanvas.getContext('2d', { alpha: false });
       this.foreCtx = foreCanvas.getContext('2d');
       this.worldEl = worldEl;
 
       this.width = window.innerWidth;
       this.height = window.innerHeight;
-      this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+      this.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      this._sized = false;
+      this._seaRectLeft = 0;
+      this._seaRectTop = 0;
+      this._lastWorldOffset = NaN;
+
+      // Cached CanvasGradient objects to avoid per-frame allocations
+      this._skyGrad = null;
+      this._skyGradH = -1;
+      this._sunGrad = null;
+      this._sunGradX = -1;
+      this._sunGradY = -1;
+      this._seaGrad = null;
+      this._seaGradStart = -1;
+      this._seaGradH = -1;
+      this._seaGradTop = '';
+      this._seaGradBot = '';
+
+      this._rearWaveGrad = this.seaCtx.createLinearGradient(0, -6, 0, 32);
+      this._rearWaveGrad.addColorStop(0, '#144064');
+      this._rearWaveGrad.addColorStop(0.55, 'rgba(20, 64, 100, 0.72)');
+      this._rearWaveGrad.addColorStop(1, 'rgba(20, 64, 100, 0)');
+
+      this._frontWaveGrad = this.seaCtx.createLinearGradient(0, -8, 0, 42);
+      this._frontWaveGrad.addColorStop(0, '#1a527c');
+      this._frontWaveGrad.addColorStop(0.45, 'rgba(24, 75, 115, 0.86)');
+      this._frontWaveGrad.addColorStop(1, 'rgba(24, 75, 115, 0)');
 
       this.cameraY = 0;
       this.worldOffset = this.height * 0.54;
@@ -752,22 +798,44 @@
 
     resize() {
       const vv = window.visualViewport;
-      this.width = vv ? Math.round(vv.width) : window.innerWidth;
-      this.height = vv ? Math.round(vv.height) : window.innerHeight;
-      this.dpr = appState.settings.lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      const newW = vv ? Math.round(vv.width) : window.innerWidth;
+      const newH = vv ? Math.round(vv.height) : window.innerHeight;
+      const newDpr = appState.settings.lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 1.5);
 
+      if (this._sized && newW === this.width && newH === this.height && newDpr === this.dpr) {
+        return;
+      }
+
+      this.width = newW;
+      this.height = newH;
+      this.dpr = newDpr;
+      this._sized = true;
+      this._skyGradH = -1;
+      this._sunGradX = -1;
+      this._seaGradH = -1;
+
+      const bw = Math.floor(this.width * this.dpr);
+      const bh = Math.floor(this.height * this.dpr);
       [this.sea, this.fore].forEach((c) => {
-        c.width = Math.floor(this.width * this.dpr);
-        c.height = Math.floor(this.height * this.dpr);
+        c.width = bw;
+        c.height = bh;
         c.style.width = this.width + 'px';
         c.style.height = this.height + 'px';
       });
+
+      const rect = this.sea.getBoundingClientRect();
+      this._seaRectLeft = rect.left;
+      this._seaRectTop = rect.top;
     }
 
     setCameraDepthPx(depthPx, ratio = 0.38) {
       this.cameraY = depthPx;
-      this.worldOffset = this.height * ratio - depthPx;
-      this.worldEl.style.transform = `translate3d(0px, ${this.worldOffset.toFixed(2)}px, 0px)`;
+      const nextOffset = this.height * ratio - depthPx;
+      this.worldOffset = nextOffset;
+      if (isNaN(this._lastWorldOffset) || Math.abs(nextOffset - this._lastWorldOffset) >= 0.05) {
+        this._lastWorldOffset = nextOffset;
+        this.worldEl.style.transform = `translate3d(0px, ${nextOffset.toFixed(2)}px, 0px)`;
+      }
     }
 
     spawnChipBubbles(screenX, screenY, color = '#4de3ff') {
@@ -958,7 +1026,7 @@
     }
 
     drawDepthRuler(fctx, waterlineScreenY) {
-      const phase = appEl.dataset.phase;
+      const phase = session.phase;
       const showRuler = phase === 'preview' || phase === 'answering' || phase === 'feedback' || phase === 'intro';
       if (!showRuler) return;
 
@@ -974,40 +1042,65 @@
       fctx.lineTo(x, this.height);
       fctx.stroke();
 
-      fctx.font = '11px "JetBrains Mono", monospace';
-      fctx.textAlign = 'right';
-      fctx.textBaseline = 'middle';
-
       const showYou = phase !== 'intro' && session.totalDepthM > 0;
       const youY = showYou ? Math.round(this.worldOffset + session.totalDepthM * PX_PER_METER) : -9999;
 
       const startM = Math.max(0, Math.floor((0 - this.worldOffset) / PX_PER_METER / 10) * 10);
       const endM = Math.min(7000, Math.ceil((this.height - this.worldOffset) / PX_PER_METER / 10) * 10);
+      const minY = waterlineScreenY - 2;
+      const maxY = this.height - 8;
 
+      // Pass 1: Minor ticks (10m / 50m) in a single batched stroke
+      fctx.strokeStyle = 'rgba(125, 147, 184, 0.34)';
+      fctx.beginPath();
       for (let m = startM; m <= endM; m += 10) {
+        if (m % 100 === 0) continue;
         const sy = Math.round(this.worldOffset + m * PX_PER_METER) + 0.5;
-        if (sy < waterlineScreenY - 2 || sy > this.height - 8) continue;
-        const is500 = m > 0 && m % 500 === 0;
-        const is100 = m % 100 === 0;
-        const is50 = m % 50 === 0;
-        const tickLen = is500 ? 13 : is100 ? 11 : is50 ? 7 : 4;
-
-        fctx.strokeStyle = is500
-          ? 'rgba(77, 227, 255, 0.72)'
-          : is100 ? 'rgba(164, 192, 232, 0.75)' : 'rgba(125, 147, 184, 0.34)';
-        fctx.beginPath();
+        if (sy < minY || sy > maxY) continue;
+        const tickLen = (m % 50 === 0) ? 7 : 4;
         fctx.moveTo(x - tickLen, sy);
         fctx.lineTo(x, sy);
-        fctx.stroke();
+      }
+      fctx.stroke();
 
-        // Skip 100m text label if "ВЫ" indicator occupies that vertical band
-        if (is100 && (!showYou || Math.abs(sy - youY) > 15)) {
-          fctx.fillStyle = m === 0
-            ? 'rgba(205, 234, 255, 0.9)'
-            : is500 ? 'rgba(128, 226, 255, 0.88)' : 'rgba(148, 173, 214, 0.85)';
-          const label = m === 0 ? '0м' : `-${m}м`;
-          fctx.fillText(label, x - 14, sy);
-        }
+      // Pass 2: 100m ticks in a single batched stroke
+      const first100 = Math.ceil(startM / 100) * 100;
+      fctx.strokeStyle = 'rgba(164, 192, 232, 0.75)';
+      fctx.beginPath();
+      for (let m = first100; m <= endM; m += 100) {
+        if (m > 0 && m % 500 === 0) continue;
+        const sy = Math.round(this.worldOffset + m * PX_PER_METER) + 0.5;
+        if (sy < minY || sy > maxY) continue;
+        fctx.moveTo(x - 11, sy);
+        fctx.lineTo(x, sy);
+      }
+      fctx.stroke();
+
+      // Pass 3: 500m major ticks in a single batched stroke
+      const first500 = Math.max(500, Math.ceil(startM / 500) * 500);
+      fctx.strokeStyle = 'rgba(77, 227, 255, 0.72)';
+      fctx.beginPath();
+      for (let m = first500; m <= endM; m += 500) {
+        const sy = Math.round(this.worldOffset + m * PX_PER_METER) + 0.5;
+        if (sy < minY || sy > maxY) continue;
+        fctx.moveTo(x - 13, sy);
+        fctx.lineTo(x, sy);
+      }
+      fctx.stroke();
+
+      // Pass 4: 100m labels (skip band occupied by "ВЫ" indicator)
+      fctx.font = '11px "JetBrains Mono", monospace';
+      fctx.textAlign = 'right';
+      fctx.textBaseline = 'middle';
+      for (let m = first100; m <= endM; m += 100) {
+        const sy = Math.round(this.worldOffset + m * PX_PER_METER) + 0.5;
+        if (sy < minY || sy > maxY) continue;
+        if (showYou && Math.abs(sy - youY) <= 15) continue;
+        const is500 = m > 0 && m % 500 === 0;
+        fctx.fillStyle = m === 0
+          ? 'rgba(205, 234, 255, 0.9)'
+          : is500 ? 'rgba(128, 226, 255, 0.88)' : 'rgba(148, 173, 214, 0.85)';
+        fctx.fillText(m === 0 ? '0м' : `-${m}м`, x - 14, sy);
       }
 
       // Pink "ВЫ" depth indicator marker during active dive
@@ -1042,16 +1135,14 @@
       fctx.restore();
     }
 
-    render(ts) {
+    render(ts, dtScale = 1) {
       const t = ts * 0.001;
       const ctx = this.seaCtx;
       const fctx = this.foreCtx;
-      ctx.save();
-      ctx.scale(this.dpr, this.dpr);
-      fctx.save();
-      fctx.scale(this.dpr, this.dpr);
+      const lowPower = appState.settings.lowPower;
 
-      ctx.clearRect(0, 0, this.width, this.height);
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      fctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       fctx.clearRect(0, 0, this.width, this.height);
 
       const depthFrac = Math.max(0, Math.min(1, this.cameraY / 14000));
@@ -1060,40 +1151,51 @@
       // 1. Bright Daylight Cyan Pixel Sky when waterline is on screen (krillion.io parity)
       if (waterlineScreenY > -10) {
         const skyH = Math.min(this.height, waterlineScreenY + 24);
-        const skyGrad = ctx.createLinearGradient(0, 0, 0, skyH);
-        skyGrad.addColorStop(0, '#62b3db');
-        skyGrad.addColorStop(0.55, '#8fd2ed');
-        skyGrad.addColorStop(1, '#c3e9f8');
-        ctx.fillStyle = skyGrad;
+        if (!this._skyGrad || Math.abs(skyH - this._skyGradH) >= 2) {
+          this._skyGradH = skyH;
+          const sg = ctx.createLinearGradient(0, 0, 0, skyH);
+          sg.addColorStop(0, '#62b3db');
+          sg.addColorStop(0.55, '#8fd2ed');
+          sg.addColorStop(1, '#c3e9f8');
+          this._skyGrad = sg;
+        }
+        ctx.fillStyle = this._skyGrad;
         ctx.fillRect(0, 0, this.width, skyH);
 
         // Glowing Pixel Sun (upper right)
         const sunX = this.width * 0.84;
         const sunY = Math.max(46, waterlineScreenY * 0.34);
-        const sunGrad = ctx.createRadialGradient(sunX, sunY, 18, sunX, sunY, 96);
-        sunGrad.addColorStop(0, 'rgba(255, 232, 130, 0.72)');
-        sunGrad.addColorStop(0.55, 'rgba(255, 224, 110, 0.22)');
-        sunGrad.addColorStop(1, 'rgba(255, 224, 110, 0)');
-        ctx.fillStyle = sunGrad;
+        if (!this._sunGrad || Math.abs(sunX - this._sunGradX) >= 2 || Math.abs(sunY - this._sunGradY) >= 2) {
+          this._sunGradX = sunX;
+          this._sunGradY = sunY;
+          const g = ctx.createRadialGradient(sunX, sunY, 18, sunX, sunY, 96);
+          g.addColorStop(0, 'rgba(255, 232, 130, 0.72)');
+          g.addColorStop(0.55, 'rgba(255, 224, 110, 0.22)');
+          g.addColorStop(1, 'rgba(255, 224, 110, 0)');
+          this._sunGrad = g;
+        }
+        ctx.fillStyle = this._sunGrad;
         ctx.beginPath();
         ctx.arc(sunX, sunY, 96, 0, Math.PI * 2);
         ctx.fill();
 
         // Stepped Pixel Sun Core (multi-tone)
+        const rsx = Math.round(sunX);
+        const rsy = Math.round(sunY);
         ctx.fillStyle = 'rgba(255, 229, 133, 0.35)';
-        ctx.fillRect(Math.round(sunX - 28), Math.round(sunY - 36), 56, 72);
-        ctx.fillRect(Math.round(sunX - 36), Math.round(sunY - 28), 72, 56);
+        ctx.fillRect(rsx - 28, rsy - 36, 56, 72);
+        ctx.fillRect(rsx - 36, rsy - 28, 72, 56);
         ctx.fillStyle = '#ffe585';
-        ctx.fillRect(Math.round(sunX - 24), Math.round(sunY - 32), 48, 64);
-        ctx.fillRect(Math.round(sunX - 32), Math.round(sunY - 24), 64, 48);
+        ctx.fillRect(rsx - 24, rsy - 32, 48, 64);
+        ctx.fillRect(rsx - 32, rsy - 24, 64, 48);
         ctx.fillStyle = '#fff3b8';
-        ctx.fillRect(Math.round(sunX - 18), Math.round(sunY - 24), 36, 48);
-        ctx.fillRect(Math.round(sunX - 24), Math.round(sunY - 18), 48, 36);
+        ctx.fillRect(rsx - 18, rsy - 24, 36, 48);
+        ctx.fillRect(rsx - 24, rsy - 18, 48, 36);
         ctx.fillStyle = '#fffce0';
-        ctx.fillRect(Math.round(sunX - 14), Math.round(sunY - 16), 16, 16);
+        ctx.fillRect(rsx - 14, rsy - 16, 16, 16);
 
         // High-altitude pixel cirrus wisps
-        if (!appState.settings.lowPower) {
+        if (!lowPower) {
           ctx.fillStyle = 'rgba(255, 255, 255, 0.34)';
           for (const ci of this.cirrus) {
             const cix = Math.round((((ci.x + t * ci.speed) % 1.2) - 0.1) * this.width);
@@ -1122,17 +1224,20 @@
           ctx.fillRect(lx - 2, ly - 15, 3, 2);
           // Subtle blinking lighthouse beam
           const lhPulse = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2.1));
-          ctx.fillStyle = `rgba(255, 240, 170, ${(lhPulse * 0.85).toFixed(2)})`;
+          ctx.globalAlpha = lhPulse * 0.85;
+          ctx.fillStyle = '#fff0aa';
           ctx.fillRect(lx - 2, ly - 26, 3, 2);
-          if (!appState.settings.lowPower && lhPulse > 0.6) {
-            ctx.fillStyle = `rgba(255, 243, 184, ${((lhPulse - 0.6) * 0.32).toFixed(2)})`;
+          if (!lowPower && lhPulse > 0.6) {
+            ctx.globalAlpha = (lhPulse - 0.6) * 0.32;
+            ctx.fillStyle = '#fff3b8';
             ctx.fillRect(lx + 1, ly - 27, 16, 2);
             ctx.fillRect(lx - 18, ly - 27, 16, 2);
           }
+          ctx.globalAlpha = 1;
         }
 
         // Distant gliding pixel seagulls above horizon (2-segment articulated wings)
-        if (!appState.settings.lowPower) {
+        if (!lowPower) {
           for (const g of this.gulls) {
             const gx = Math.round((((g.x + t * g.speed) % 1.15) - 0.08) * this.width);
             const gy = Math.round(Math.max(20, waterlineScreenY * g.y + Math.sin(t * 1.8 + g.phase) * 5));
@@ -1153,7 +1258,7 @@
         }
 
         // Pixel Clouds drifting gently
-        if (!appState.settings.lowPower) {
+        if (!lowPower) {
           for (const cl of this.clouds) {
             const cx = (((cl.x + t * cl.speed) % 1.25) - 0.12) * this.width;
             const cy = Math.max(24, waterlineScreenY * cl.y);
@@ -1167,14 +1272,7 @@
       // 2. Ocean Body (exact krillion.io multi-stop depth progression)
       const oceanStart = Math.max(0, waterlineScreenY);
       if (oceanStart < this.height) {
-        const stops = [
-          [0.00, '#1d5580', '#123a5e'],
-          [0.08, '#123a5e', '#0b1e38'],
-          [0.22, '#0b1526', '#081020'],
-          [0.50, '#081020', '#050a14'],
-          [0.78, '#050a14', '#03070f'],
-          [1.00, '#03070f', '#02050b']
-        ];
+        const stops = OceanStage.DEPTH_STOPS;
         let sA = stops[0], sB = stops[stops.length - 1];
         for (let i = 0; i < stops.length - 1; i++) {
           if (depthFrac >= stops[i][0] && depthFrac <= stops[i + 1][0]) {
@@ -1188,38 +1286,51 @@
         const topColor = lerpHex(sA[1], sB[1], localT);
         const botColor = lerpHex(sA[2], sB[2], localT);
 
-        const seaGrad = ctx.createLinearGradient(0, oceanStart, 0, this.height);
-        seaGrad.addColorStop(0, topColor);
-        seaGrad.addColorStop(1, botColor);
-        ctx.fillStyle = seaGrad;
+        if (
+          !this._seaGrad ||
+          Math.abs(oceanStart - this._seaGradStart) >= 2 ||
+          this.height !== this._seaGradH ||
+          topColor !== this._seaGradTop ||
+          botColor !== this._seaGradBot
+        ) {
+          this._seaGradStart = oceanStart;
+          this._seaGradH = this.height;
+          this._seaGradTop = topColor;
+          this._seaGradBot = botColor;
+          const sg = ctx.createLinearGradient(0, oceanStart, 0, this.height);
+          sg.addColorStop(0, topColor);
+          sg.addColorStop(1, botColor);
+          this._seaGrad = sg;
+        }
+        ctx.fillStyle = this._seaGrad;
         ctx.fillRect(0, oceanStart, this.width, this.height - oceanStart);
 
-        // Soft Sun Caustic Light Shafts + crisp sub-surface caustic ripples near surface
-        if (depthFrac < 0.14 && !appState.settings.lowPower) {
+        // Soft Sun Caustic Light Shafts (single shared gradient + batched path) + crisp sub-surface caustic ripples
+        if (depthFrac < 0.14 && !lowPower) {
           const rayAlpha = (1 - depthFrac / 0.14) * 0.058;
+          const rGrad = ctx.createLinearGradient(0, oceanStart, 0, this.height * 0.9);
+          rGrad.addColorStop(0, `rgba(110, 224, 255, ${(rayAlpha * 1.45).toFixed(3)})`);
+          rGrad.addColorStop(1, 'rgba(77, 227, 255, 0)');
+          ctx.fillStyle = rGrad;
+          ctx.beginPath();
           for (let i = 0; i < 6; i++) {
             const rx = this.width * (0.08 + i * 0.17) + Math.sin(t * 0.35 + i * 1.1) * 24;
-            const rGrad = ctx.createLinearGradient(0, oceanStart, 0, this.height * 0.9);
-            rGrad.addColorStop(0, `rgba(110, 224, 255, ${(rayAlpha * 1.45).toFixed(3)})`);
-            rGrad.addColorStop(1, 'rgba(77, 227, 255, 0)');
-            ctx.fillStyle = rGrad;
-            ctx.beginPath();
             ctx.moveTo(rx - 18, oceanStart);
             ctx.lineTo(rx + 26, oceanStart);
             ctx.lineTo(rx + 125, this.height);
             ctx.lineTo(rx - 85, this.height);
             ctx.closePath();
-            ctx.fill();
           }
+          ctx.fill();
 
           // Subtle pixel caustic web just beneath waterline
           const causticAlpha = (1 - depthFrac / 0.14) * 0.14;
+          ctx.fillStyle = '#9becff';
           for (let row = 0; row < 4; row++) {
             const cy = Math.round(oceanStart + 24 + row * 24);
             if (cy >= this.height) break;
             const step = 64 + row * 14;
-            const fade = causticAlpha * (1 - row * 0.22);
-            ctx.fillStyle = `rgba(155, 236, 255, ${fade.toFixed(3)})`;
+            ctx.globalAlpha = causticAlpha * (1 - row * 0.22);
             for (let cx = 18; cx < this.width - 18; cx += step) {
               const drift = Math.round(Math.sin(t * 1.4 + row * 1.7 + cx * 0.03) * 10);
               const w = 14 + ((cx + row * 11) % 14);
@@ -1227,28 +1338,27 @@
               ctx.fillRect(cx + drift + 4, cy + 2, Math.max(4, w - 8), 1);
             }
           }
+          ctx.globalAlpha = 1;
         }
       }
 
       // 3. Undulating Surface Wave Crest (rear + front parallax) + Pixel Trawler Boat + Horizon Buoy
       if (waterlineScreenY > -55 && waterlineScreenY < this.height + 40) {
-        // Distant rear wave layer (smooth fade into ocean body)
+        // Distant rear wave layer using prebuilt local-space gradient
+        ctx.save();
+        ctx.translate(0, waterlineScreenY);
         ctx.beginPath();
-        ctx.moveTo(0, waterlineScreenY - 2);
+        ctx.moveTo(0, -2);
         for (let x = 0; x <= this.width; x += 16) {
-          const wy = waterlineScreenY - 2 + Math.sin(x * 0.011 - t * 1.2) * 3.5;
-          ctx.lineTo(x, wy);
+          ctx.lineTo(x, -2 + Math.sin(x * 0.011 - t * 1.2) * 3.5);
         }
-        const rearBotY = Math.min(this.height, waterlineScreenY + 32);
-        ctx.lineTo(this.width, rearBotY);
-        ctx.lineTo(0, rearBotY);
+        const rearLocalBot = Math.min(this.height - waterlineScreenY, 32);
+        ctx.lineTo(this.width, rearLocalBot);
+        ctx.lineTo(0, rearLocalBot);
         ctx.closePath();
-        const rearGrad = ctx.createLinearGradient(0, waterlineScreenY - 6, 0, rearBotY);
-        rearGrad.addColorStop(0, '#144064');
-        rearGrad.addColorStop(0.55, 'rgba(20, 64, 100, 0.72)');
-        rearGrad.addColorStop(1, 'rgba(20, 64, 100, 0)');
-        ctx.fillStyle = rearGrad;
+        ctx.fillStyle = this._rearWaveGrad;
         ctx.fill();
+        ctx.restore();
 
         // Distant channel marker buoy on right horizon + water shimmer reflection
         const buoyX = Math.round(this.width * 0.79);
@@ -1261,7 +1371,7 @@
         ctx.fillRect(buoyX - 4, buoyY - 3, 8, 2);
         ctx.fillStyle = buoyLit ? '#4de3ff' : 'rgba(77, 227, 255, 0.3)';
         ctx.fillRect(buoyX - 1, buoyY - 14, 3, 2);
-        if (buoyLit && !appState.settings.lowPower) {
+        if (buoyLit && !lowPower) {
           ctx.fillStyle = 'rgba(77, 227, 255, 0.24)';
           ctx.fillRect(buoyX - 4, buoyY - 16, 9, 6);
           ctx.fillStyle = 'rgba(77, 227, 255, 0.34)';
@@ -1269,36 +1379,34 @@
           ctx.fillRect(buoyX - 2 - Math.round(Math.sin(t * 3.5) * 2), buoyY + 10, 4, 2);
         }
 
-        // Foreground surface wave (seamless fade into ocean body so caustic rays don't clip)
+        // Foreground surface wave using prebuilt local-space gradient
+        ctx.save();
+        ctx.translate(0, waterlineScreenY);
         ctx.beginPath();
-        ctx.moveTo(0, waterlineScreenY);
+        ctx.moveTo(0, 0);
         for (let x = 0; x <= this.width; x += 16) {
-          const wy = waterlineScreenY + Math.sin(x * 0.014 + t * 1.9) * 5 + Math.cos(x * 0.028 - t * 1.2) * 2.5;
-          ctx.lineTo(x, wy);
+          ctx.lineTo(x, Math.sin(x * 0.014 + t * 1.9) * 5 + Math.cos(x * 0.028 - t * 1.2) * 2.5);
         }
-        const waveBotY = Math.min(this.height, waterlineScreenY + 42);
-        ctx.lineTo(this.width, waveBotY);
-        ctx.lineTo(0, waveBotY);
+        const frontLocalBot = Math.min(this.height - waterlineScreenY, 42);
+        ctx.lineTo(this.width, frontLocalBot);
+        ctx.lineTo(0, frontLocalBot);
         ctx.closePath();
-        const waveGrad = ctx.createLinearGradient(0, waterlineScreenY - 8, 0, waveBotY);
-        waveGrad.addColorStop(0, '#1a527c');
-        waveGrad.addColorStop(0.45, 'rgba(24, 75, 115, 0.86)');
-        waveGrad.addColorStop(1, 'rgba(24, 75, 115, 0)');
-        ctx.fillStyle = waveGrad;
+        ctx.fillStyle = this._frontWaveGrad;
         ctx.fill();
 
         ctx.beginPath();
         for (let x = 0; x <= this.width; x += 16) {
-          const wy = waterlineScreenY + Math.sin(x * 0.014 + t * 1.9) * 5 + Math.cos(x * 0.028 - t * 1.2) * 2.5;
+          const wy = Math.sin(x * 0.014 + t * 1.9) * 5 + Math.cos(x * 0.028 - t * 1.2) * 2.5;
           if (x === 0) ctx.moveTo(x, wy);
           else ctx.lineTo(x, wy);
         }
         ctx.strokeStyle = 'rgba(216, 248, 255, 0.68)';
         ctx.lineWidth = 2;
         ctx.stroke();
+        ctx.restore();
 
         // Scattered crisp pixel foam flecks on crests + golden sun-glint path under sun
-        if (!appState.settings.lowPower) {
+        if (!lowPower) {
           ctx.fillStyle = 'rgba(232, 250, 255, 0.55)';
           for (let fx = 24; fx < this.width - 24; fx += 72) {
             const crestY = waterlineScreenY + Math.sin(fx * 0.014 + t * 1.9) * 5 + Math.cos(fx * 0.028 - t * 1.2) * 2.5;
@@ -1307,30 +1415,31 @@
 
           // Golden pixel sun shimmer path on waves below upper-right sun
           const sunX = this.width * 0.84;
+          ctx.fillStyle = '#fff0af';
           for (let g = 0; g < 6; g++) {
             const gy = Math.round(waterlineScreenY + 6 + g * 8);
             if (gy >= this.height) break;
             const spread = 28 - g * 3;
             const gx = Math.round(sunX + Math.sin(t * 2.4 + g * 1.9) * (8 + g * 2) - spread * 0.5);
             const alpha = (0.42 - g * 0.055) * (0.7 + 0.3 * Math.sin(t * 4.2 + g));
-            ctx.fillStyle = `rgba(255, 240, 175, ${Math.max(0.05, alpha).toFixed(2)})`;
+            ctx.globalAlpha = Math.max(0.05, alpha);
             ctx.fillRect(gx, gy, Math.max(6, spread), 2);
           }
+          ctx.globalAlpha = 1;
         }
 
-        // Bobbing black pixel trawler boat
+        // Bobbing black pixel trawler boat (uses cached seaRect instead of per-frame getBoundingClientRect)
         const boatX = Math.round(this.width * 0.29);
         const boatWaveY = waterlineScreenY + Math.sin(boatX * 0.014 + t * 1.9) * 5 + Math.cos(boatX * 0.028 - t * 1.2) * 2.5;
         const slope = Math.cos(boatX * 0.014 + t * 1.9) * 0.065;
         let pulseOffset = 0;
         if (this.boatTapPulse > 0.01) {
           pulseOffset = Math.sin(this.boatTapPulse * Math.PI) * 5;
-          this.boatTapPulse *= 0.86;
+          this.boatTapPulse *= Math.pow(0.86, dtScale);
         } else {
           this.boatTapPulse = 0;
         }
-        const rect = this.sea.getBoundingClientRect();
-        this.boatBounds = { x: rect.left + boatX, y: rect.top + boatWaveY + 2, w: 180, h: 130 };
+        this.boatBounds = { x: this._seaRectLeft + boatX, y: this._seaRectTop + boatWaveY + 2, w: 180, h: 130 };
         this.drawPixelBoat(ctx, boatX, boatWaveY + 2 + pulseOffset, slope, t);
       } else {
         this.boatBounds = null;
@@ -1344,40 +1453,46 @@
         const segH = 12;
         const steps = Math.floor(k.height / segH);
         const backScale = k.back ? 0.62 : 1.0;
+        const stemColor = `rgba(7, 20, 38, ${(0.88 * backScale).toFixed(2)})`;
+        const hiColor = `rgba(15, 44, 68, ${(0.72 * backScale).toFixed(2)})`;
+        const leafColor = `rgba(11, 34, 56, ${(0.85 * backScale).toFixed(2)})`;
         for (let s = 0; s < steps; s++) {
           const sy = ky - s * segH;
           const sway = Math.sin(t * 1.2 + k.phase + s * 0.32) * (s * 0.75);
           const w = (k.back ? 8 : 10) - (s / steps) * 3.5;
           const rx = Math.round(kx + sway);
           const ry = Math.round(sy);
-          ctx.fillStyle = `rgba(7, 20, 38, ${(0.88 * backScale).toFixed(2)})`;
+          ctx.fillStyle = stemColor;
           ctx.fillRect(rx, ry, Math.round(w), segH + 1);
-          ctx.fillStyle = `rgba(15, 44, 68, ${(0.72 * backScale).toFixed(2)})`;
+          ctx.fillStyle = hiColor;
           ctx.fillRect(rx + 2, ry + 1, Math.max(2, Math.round(w * 0.45)), segH);
           if (s % 2 === 0 && s > 1) {
             const leafDir = s % 4 === 0 ? 1 : -1;
             const lx = Math.round(kx + sway + leafDir * w);
-            ctx.fillStyle = `rgba(11, 34, 56, ${(0.85 * backScale).toFixed(2)})`;
+            ctx.fillStyle = leafColor;
             ctx.fillRect(lx, ry + 2, Math.round(w * 1.4), 7);
             ctx.fillRect(lx + (leafDir > 0 ? Math.round(w * 0.9) : -3), ry + 4, 4, 4);
             if (s % 6 === 0 && !k.back) {
-              const podGlow = 0.22 + 0.2 * Math.sin(t * 2.4 + k.phase + s);
-              ctx.fillStyle = `rgba(77, 227, 255, ${podGlow.toFixed(2)})`;
+              ctx.globalAlpha = 0.22 + 0.2 * Math.sin(t * 2.4 + k.phase + s);
+              ctx.fillStyle = '#4de3ff';
               ctx.fillRect(lx + (leafDir > 0 ? 2 : 1), ry + 3, 2, 2);
+              ctx.globalAlpha = 1;
             }
           }
         }
         // Tiny oxygen micro-bubbles rising from kelp tips
-        if (!appState.settings.lowPower && !k.back) {
+        if (!lowPower && !k.back) {
+          ctx.fillStyle = '#a5ecff';
           for (let b = 0; b < 2; b++) {
             const prog = (t * 0.24 + k.phase * 0.3 + b * 0.5) % 1;
             const bx = Math.round(kx + Math.sin(t * 2.2 + b * 3 + k.phase) * 6);
             const by = Math.round((ky - k.height) - prog * 54);
             if (by > waterlineScreenY + 8 && by < this.height) {
-              ctx.fillStyle = `rgba(165, 236, 255, ${((1 - prog) * 0.36).toFixed(2)})`;
+              ctx.globalAlpha = (1 - prog) * 0.36;
               ctx.fillRect(bx, by, 2, 2);
             }
           }
+          ctx.globalAlpha = 1;
         }
       }
 
@@ -1388,61 +1503,70 @@
           const blockH = 72;
           const topIdx = Math.max(18, Math.floor((0 - this.worldOffset) / blockH) - 1);
           const botIdx = Math.min(205, Math.ceil((this.height - this.worldOffset) / blockH) + 1);
+          const wallBaseColor = `rgba(9, 17, 31, ${wallAlpha.toFixed(2)})`;
+          const wallShelfColor = `rgba(17, 32, 56, ${(wallAlpha * 0.82).toFixed(2)})`;
+          const wallEdgeColor = `rgba(38, 66, 106, ${(wallAlpha * 0.55).toFixed(2)})`;
           for (let i = topIdx; i <= botIdx; i++) {
             const sy = this.worldOffset + i * blockH;
             const lw = 20 + ((i * 37) % 28);
             const rw = 20 + ((i * 53) % 28);
-            ctx.fillStyle = `rgba(9, 17, 31, ${wallAlpha.toFixed(2)})`;
+            ctx.fillStyle = wallBaseColor;
             ctx.fillRect(0, sy, lw, blockH + 2);
             ctx.fillRect(this.width - rw, sy, rw, blockH + 2);
             // Stepped rock shelf
-            ctx.fillStyle = `rgba(17, 32, 56, ${(wallAlpha * 0.82).toFixed(2)})`;
+            ctx.fillStyle = wallShelfColor;
             ctx.fillRect(Math.max(0, lw - 10), sy + 6, 10, blockH - 12);
             ctx.fillRect(this.width - rw, sy + 8, 10, blockH - 16);
             // Crisp cyan-slate rock edge highlight
-            ctx.fillStyle = `rgba(38, 66, 106, ${(wallAlpha * 0.55).toFixed(2)})`;
+            ctx.fillStyle = wallEdgeColor;
             ctx.fillRect(lw - 3, sy + 10, 3, blockH - 22);
             ctx.fillRect(this.width - rw, sy + 12, 3, blockH - 24);
 
             // Faceted bioluminescent crystal clusters in trench rocks (with soft ambient halo)
             if (i % 3 === 0) {
               const pulse = 0.42 + 0.52 * Math.sin(t * 2.1 + i);
-              const pinkCrystal = i % 6 === 0;
-              const rgb = pinkCrystal ? '255, 93, 143' : '77, 227, 255';
+              const hex = (i % 6 === 0) ? '#ff5d8f' : '#4de3ff';
               const lx = Math.max(4, lw - 11);
               const rx = Math.min(this.width - 10, this.width - rw + 6);
-              if (!appState.settings.lowPower) {
-                ctx.fillStyle = `rgba(${rgb}, ${(wallAlpha * pulse * 0.16).toFixed(2)})`;
+              ctx.fillStyle = hex;
+              if (!lowPower) {
+                ctx.globalAlpha = wallAlpha * pulse * 0.16;
                 ctx.fillRect(lx - 4, sy + 12, 15, 15);
                 ctx.fillRect(rx - 6, sy + 32, 15, 15);
               }
-              ctx.fillStyle = `rgba(${rgb}, ${(wallAlpha * pulse).toFixed(2)})`;
+              ctx.globalAlpha = wallAlpha * pulse;
               ctx.fillRect(lx, sy + 16, 4, 7);
               ctx.fillRect(lx + 4, sy + 19, 3, 4);
               ctx.fillRect(rx, sy + 36, 4, 7);
               ctx.fillRect(rx - 3, sy + 39, 3, 4);
-              ctx.fillStyle = `rgba(230, 245, 255, ${(wallAlpha * pulse * 0.85).toFixed(2)})`;
+              ctx.fillStyle = '#e6f5ff';
+              ctx.globalAlpha = wallAlpha * pulse * 0.85;
               ctx.fillRect(lx + 1, sy + 17, 2, 2);
               ctx.fillRect(rx + 1, sy + 37, 2, 2);
+              ctx.globalAlpha = 1;
             }
 
             // Deep hydrothermal crevice glow + warm rising plume particles (> 2200m / i >= 60)
-            if (i >= 60 && i % 7 === 0 && !appState.settings.lowPower) {
+            if (i >= 60 && i % 7 === 0 && !lowPower) {
               const glow = 0.35 + 0.3 * Math.sin(t * 3.1 + i * 1.3);
               const onLeft = i % 14 === 0;
               const vx = onLeft ? lw - 2 : this.width - rw;
               const vy = Math.round(sy + 44);
-              ctx.fillStyle = `rgba(255, 130, 74, ${(wallAlpha * glow * 0.72).toFixed(2)})`;
+              ctx.fillStyle = '#ff824a';
+              ctx.globalAlpha = wallAlpha * glow * 0.72;
               ctx.fillRect(onLeft ? vx - 4 : vx, vy, 5, 3);
-              ctx.fillStyle = `rgba(255, 209, 102, ${(wallAlpha * glow * 0.55).toFixed(2)})`;
+              ctx.fillStyle = '#ffd166';
+              ctx.globalAlpha = wallAlpha * glow * 0.55;
               ctx.fillRect(onLeft ? vx - 2 : vx + 1, vy + 1, 2, 2);
+              ctx.fillStyle = '#ffa56e';
               for (let vp = 0; vp < 3; vp++) {
                 const prog = (t * 0.42 + vp * 0.33 + i) % 1;
                 const px = Math.round(vx + (onLeft ? 3 : -4) + Math.sin(t * 3 + vp * 2) * 3);
                 const py = Math.round(vy - prog * 34);
-                ctx.fillStyle = `rgba(255, 165, 110, ${((1 - prog) * 0.36 * wallAlpha).toFixed(2)})`;
+                ctx.globalAlpha = (1 - prog) * 0.36 * wallAlpha;
                 ctx.fillRect(px, py, 2, 2);
               }
+              ctx.globalAlpha = 1;
             }
           }
         }
@@ -1482,37 +1606,44 @@
         for (let px = -72; px <= 68; px += 16) {
           ctx.fillRect(tx + px, titanicY - 32, 4, 3);
         }
-        const glint = 0.16 + 0.14 * Math.sin(t * 1.9);
-        ctx.fillStyle = `rgba(255, 209, 102, ${glint.toFixed(2)})`;
+        ctx.fillStyle = '#ffd166';
+        ctx.globalAlpha = 0.16 + 0.14 * Math.sin(t * 1.9);
         ctx.fillRect(tx - 48, titanicY - 14, 4, 3);
         ctx.fillRect(tx + 12, titanicY - 14, 4, 3);
         // Slow trail of bubbles escaping from snapped 4th funnel
-        if (!appState.settings.lowPower) {
+        if (!lowPower) {
+          ctx.fillStyle = '#8ce0ff';
           for (let tb = 0; tb < 4; tb++) {
             const prog = (t * 0.22 + tb * 0.25) % 1;
             const bx = Math.round(tx + 42 + Math.sin(t * 2.5 + tb * 2) * 4);
             const by = Math.round(titanicY - 60 - prog * 68);
-            ctx.fillStyle = `rgba(140, 224, 255, ${((1 - prog) * 0.32).toFixed(2)})`;
+            ctx.globalAlpha = (1 - prog) * 0.32;
             ctx.fillRect(bx, by, 2, 2);
           }
         }
+        ctx.globalAlpha = 1;
       }
 
       // 7. Deep Ambient Currents + Multi-Layer Marine Snow & Twinkling Bioluminescent Sparks
-      if (!appState.settings.lowPower) {
+      if (!lowPower) {
+        const isDeepCur = depthFrac > 0.45;
+        ctx.fillStyle = isDeepCur ? '#4de3ff' : '#b6e8ff';
+        const curScale = isDeepCur ? 0.72 : 1;
         for (const c of this.currents) {
           const cx = ((c.x + t * c.speed) % 1.15 - 0.08) * this.width;
           const cy = ((c.y * this.height + this.worldOffset * c.parallax) % this.height + this.height) % this.height;
           if (cy <= waterlineScreenY + 14) continue;
-          ctx.fillStyle = depthFrac > 0.45
-            ? `rgba(77, 227, 255, ${(c.alpha * 0.72).toFixed(3)})`
-            : `rgba(182, 232, 255, ${c.alpha.toFixed(3)})`;
+          ctx.globalAlpha = c.alpha * curScale;
           ctx.fillRect(Math.round(cx), Math.round(cy), Math.round(c.len), 1);
           ctx.fillRect(Math.round(cx + c.len * 0.25), Math.round(cy + 2), Math.round(c.len * 0.5), 1);
         }
+        ctx.globalAlpha = 1;
       }
 
-      const pLimit = appState.settings.lowPower ? 36 : this.particles.length;
+      const pLimit = lowPower ? 36 : this.particles.length;
+      const deepSparks = depthFrac > 0.35;
+      const deepSnow = depthFrac > 0.55;
+      let lastParticleFill = '';
       for (let i = 0; i < pLimit; i++) {
         const p = this.particles[i];
         const px = Math.round(((p.x * this.width + Math.sin(t * p.speed + i) * 14) % this.width + this.width) % this.width);
@@ -1522,31 +1653,34 @@
 
         const tw = p.spark ? (0.45 + 0.55 * Math.sin(t * 2.6 + p.twinkle)) : 1;
         const a = p.alpha * tw;
-        if (depthFrac > 0.35 && p.spark) {
-          const rgb = p.gold ? '255, 209, 102' : (i % 3 === 0 ? '255, 93, 143' : '77, 227, 255');
-          ctx.fillStyle = `rgba(${rgb}, ${(a * 0.95).toFixed(2)})`;
+        if (deepSparks && p.spark) {
+          const hex = p.gold ? '#ffd166' : (i % 3 === 0 ? '#ff5d8f' : '#4de3ff');
+          if (lastParticleFill !== hex) { ctx.fillStyle = hex; lastParticleFill = hex; }
+          ctx.globalAlpha = a * 0.95;
           ctx.fillRect(px, py, 2, 2);
-          if (tw > 0.72 && !appState.settings.lowPower) {
-            ctx.fillStyle = `rgba(${rgb}, ${(a * 0.45).toFixed(2)})`;
+          if (tw > 0.72 && !lowPower) {
+            ctx.globalAlpha = a * 0.45;
             ctx.fillRect(px - 2, py, 6, 2);
             ctx.fillRect(px, py - 2, 2, 6);
           }
-        } else if (depthFrac > 0.55) {
-          ctx.fillStyle = i % 3 === 0
-            ? `rgba(255, 93, 143, ${(a * 0.75).toFixed(2)})`
-            : `rgba(77, 227, 255, ${(a * 0.75).toFixed(2)})`;
+        } else if (deepSnow) {
+          const hex = (i % 3 === 0) ? '#ff5d8f' : '#4de3ff';
+          if (lastParticleFill !== hex) { ctx.fillStyle = hex; lastParticleFill = hex; }
+          ctx.globalAlpha = a * 0.75;
           ctx.fillRect(px, py, p.r, p.r);
         } else {
-          ctx.fillStyle = `rgba(198, 236, 255, ${(a * 0.85).toFixed(2)})`;
+          if (lastParticleFill !== '#c6ecff') { ctx.fillStyle = '#c6ecff'; lastParticleFill = '#c6ecff'; }
+          ctx.globalAlpha = a * 0.85;
           ctx.fillRect(px, py, p.r, p.r);
         }
       }
+      ctx.globalAlpha = 1;
 
       // 8. Pixel Fish Silhouettes, Ambient Micro-Schools, Manta Rays, Deep Anglerfish & Jellyfish
-      if (!appState.settings.lowPower) {
+      if (!lowPower) {
         // Synchronized micro-fish schools in upper/mid zones
         for (const sc of this.schools) {
-          sc.x = (sc.x + sc.dir * sc.speed + 1) % 1;
+          sc.x = (sc.x + sc.dir * sc.speed * dtScale + 1) % 1;
           const sy = this.worldOffset + sc.depthPx;
           if (sy < Math.max(waterlineScreenY + 24, -40) || sy > this.height + 40) continue;
           const sx = sc.x * (this.width + 120) - 60;
@@ -1563,7 +1697,7 @@
 
         // Individual pixel fish silhouettes
         for (const f of this.fish) {
-          f.x = (f.x + f.speed + 1) % 1;
+          f.x = (f.x + f.speed * dtScale + 1) % 1;
           const fy = this.worldOffset + f.depthPx + Math.sin(t * 1.4 + f.phase) * 3;
           if (fy < Math.max(waterlineScreenY + 18, -40) || fy > this.height + 40) continue;
           const fx = f.x * (this.width + 80) - 40;
@@ -1572,23 +1706,27 @@
           ctx.save();
           ctx.translate(fx, fy);
           ctx.scale(dir, 1);
-          ctx.fillStyle = `rgba(6, 16, 30, ${fa.toFixed(2)})`;
+          ctx.fillStyle = '#06101e';
+          ctx.globalAlpha = fa;
           ctx.fillRect(-f.size * 0.45, -f.size * 0.22, f.size * 0.95, f.size * 0.42);
           ctx.fillRect(-f.size * 0.12, -f.size * 0.38, f.size * 0.32, f.size * 0.16);
           ctx.fillRect(-f.size * 0.82, -f.size * 0.34, f.size * 0.35, f.size * 0.26);
           ctx.fillRect(-f.size * 0.82, f.size * 0.08, f.size * 0.35, f.size * 0.26);
-          ctx.fillStyle = `rgba(18, 42, 70, ${(fa * 0.7).toFixed(2)})`;
+          ctx.fillStyle = '#122a46';
+          ctx.globalAlpha = fa * 0.7;
           ctx.fillRect(-f.size * 0.25, f.size * 0.05, f.size * 0.55, f.size * 0.12);
           if (depthFrac > 0.35) {
-            ctx.fillStyle = 'rgba(77, 227, 255, 0.58)';
+            ctx.globalAlpha = 0.58;
+            ctx.fillStyle = '#4de3ff';
             ctx.fillRect(f.size * 0.26, -f.size * 0.1, 2, 2);
           }
           ctx.restore();
         }
+        ctx.globalAlpha = 1;
 
         // Gliding manta ray silhouettes in mid twilight depths
         for (const m of this.mantas) {
-          m.x = (m.x + m.speed + 1) % 1;
+          m.x = (m.x + m.speed * dtScale + 1) % 1;
           const my = this.worldOffset + m.depthPx + Math.sin(t * 0.8 + m.phase) * 10;
           if (my < Math.max(waterlineScreenY + 36, -60) || my > this.height + 60) continue;
           const mx = m.x * (this.width + 140) - 70;
@@ -1609,7 +1747,7 @@
 
         // Deep-sea anglerfish silhouettes with bobbing bioluminescent lure
         for (const a of this.anglers) {
-          a.x = (a.x + a.speed + 1) % 1;
+          a.x = (a.x + a.speed * dtScale + 1) % 1;
           const ay = this.worldOffset + a.depthPx + Math.sin(t * 0.7 + a.phase) * 8;
           if (ay < -50 || ay > this.height + 50) continue;
           const ax = a.x * (this.width + 120) - 60;
@@ -1624,14 +1762,18 @@
           ctx.fillRect(6, -10, 2, 5); // lure stalk
           ctx.fillRect(8, -10, 6, 2);
           // Glowing lure bulb + halo
-          ctx.fillStyle = `rgba(255, 209, 102, ${(lurePulse * 0.22).toFixed(2)})`;
+          ctx.fillStyle = '#ffd166';
+          ctx.globalAlpha = lurePulse * 0.22;
           ctx.fillRect(11, -13, 10, 10);
-          ctx.fillStyle = `rgba(255, 230, 140, ${lurePulse.toFixed(2)})`;
+          ctx.fillStyle = '#ffe68c';
+          ctx.globalAlpha = lurePulse;
           ctx.fillRect(14, -10, 4, 4);
-          ctx.fillStyle = 'rgba(255, 93, 143, 0.6)';
+          ctx.globalAlpha = 0.6;
+          ctx.fillStyle = '#ff5d8f';
           ctx.fillRect(4, -3, 2, 2); // tiny eye
           ctx.restore();
         }
+        ctx.globalAlpha = 1;
 
         // Translucent pulsing jellyfish with soft bioluminescent halo & wavy segmented tentacles
         for (const j of this.jellies) {
@@ -1640,91 +1782,106 @@
           const jx = Math.round(j.x * this.width + Math.sin(t * 0.45 + j.phase) * j.drift);
           const ry = Math.round(jy);
           const pulse = 0.24 + 0.16 * Math.sin(t * 2.2 + j.phase);
-          const rgb = j.gold ? '255, 209, 102' : (j.pink ? '255, 93, 143' : '77, 227, 255');
+          const hex = j.gold ? '#ffd166' : (j.pink ? '#ff5d8f' : '#4de3ff');
           const sc = j.scale || 1;
           const bellW = Math.round(14 * sc);
           const halfW = Math.round(bellW * 0.5);
           // Soft ambient halo
-          ctx.fillStyle = `rgba(${rgb}, ${(pulse * 0.22).toFixed(2)})`;
+          ctx.fillStyle = hex;
+          ctx.globalAlpha = pulse * 0.22;
           ctx.fillRect(jx - halfW - 3, ry - 9, bellW + 6, 13);
           // Stepped bell dome + glowing core
-          ctx.fillStyle = `rgba(${rgb}, ${(pulse * 0.72).toFixed(2)})`;
+          ctx.globalAlpha = pulse * 0.72;
           ctx.fillRect(jx - halfW, ry - 4, bellW, 5);
           ctx.fillRect(jx - halfW + 2, ry - 7, bellW - 4, 3);
-          ctx.fillStyle = `rgba(${rgb}, ${(pulse * 1.15).toFixed(2)})`;
+          ctx.globalAlpha = Math.min(1, pulse * 1.15);
           ctx.fillRect(jx - Math.round(halfW * 0.5), ry - 5, Math.max(4, Math.round(bellW * 0.5)), 3);
-          ctx.fillStyle = `rgba(240, 250, 255, ${(pulse * 0.85).toFixed(2)})`;
+          ctx.fillStyle = '#f0faff';
+          ctx.globalAlpha = pulse * 0.85;
           ctx.fillRect(jx - 2, ry - 6, 4, 2);
           // Wavy 4-segment tentacles
+          ctx.fillStyle = hex;
           const tentXs = [-halfW + 2, -1, halfW - 4];
           for (let ti = 0; ti < tentXs.length; ti++) {
             const baseTx = jx + tentXs[ti];
             const segs = ti === 1 ? 5 : 4;
             for (let s = 0; s < segs; s++) {
               const waveX = Math.round(Math.sin(t * 3.0 + j.phase + s * 0.9 + ti) * 1.8);
-              ctx.fillStyle = `rgba(${rgb}, ${(pulse * (0.95 - s * 0.16)).toFixed(2)})`;
+              ctx.globalAlpha = pulse * (0.95 - s * 0.16);
               ctx.fillRect(baseTx + waveX, ry + 1 + s * 3, 2, 3);
             }
           }
         }
+        ctx.globalAlpha = 1;
       }
 
       // 9. Orbiting effects around sinking chip (schooler fish, krillion swarm, ink puffs)
-      if (this.orbitEffect && !appState.settings.lowPower) {
+      if (this.orbitEffect && !lowPower) {
         const oe = this.orbitEffect;
         const count = oe.kind === 'krillion' ? 14 : oe.kind === 'schooler' ? 6 : 0;
+        fctx.fillStyle = oe.kind === 'krillion' ? '#ff5d8f' : '#4de3ff';
         for (let i = 0; i < count; i++) {
           const ang = t * (oe.kind === 'krillion' ? 2.8 : 1.9) + (i * Math.PI * 2) / count;
           const rad = (oe.kind === 'krillion' ? 76 : 64) + Math.sin(t * 2 + i) * 14;
           const ox = oe.x + Math.cos(ang) * rad;
           const oy = oe.y + Math.sin(ang) * rad * 0.55;
-          fctx.fillStyle = oe.kind === 'krillion' ? '#ff5d8f' : '#4de3ff';
           fctx.fillRect(Math.round(ox - 4), Math.round(oy - 2), 8, 4);
           fctx.fillRect(Math.round(ox - 7), Math.round(oy - 3), 3, 6);
         }
       }
 
       // 10. Ink puffs (squid rare tier)
-      for (let i = this.inkPuffs.length - 1; i >= 0; i--) {
-        const p = this.inkPuffs[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.r += 0.35;
-        p.life -= 0.018;
-        if (p.life <= 0) {
-          this.inkPuffs.splice(i, 1);
-          continue;
+      if (this.inkPuffs.length > 0) {
+        fctx.fillStyle = '#6e0e22';
+        for (let i = this.inkPuffs.length - 1; i >= 0; i--) {
+          const p = this.inkPuffs[i];
+          p.x += p.vx * dtScale;
+          p.y += p.vy * dtScale;
+          p.r += 0.35 * dtScale;
+          p.life -= 0.018 * dtScale;
+          if (p.life <= 0) {
+            this.inkPuffs.splice(i, 1);
+            continue;
+          }
+          fctx.globalAlpha = p.life * 0.45;
+          fctx.beginPath();
+          fctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          fctx.fill();
         }
-        fctx.fillStyle = `rgba(110, 14, 34, ${(p.life * 0.45).toFixed(3)})`;
-        fctx.beginPath();
-        fctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        fctx.fill();
+        fctx.globalAlpha = 1;
       }
 
       // 11. Pixel spark bursts
-      for (let i = this.sparks.length - 1; i >= 0; i--) {
-        const sp = this.sparks[i];
-        sp.x += sp.vx;
-        sp.y += sp.vy;
-        sp.vy += 0.06;
-        sp.life -= 0.032;
-        if (sp.life <= 0) {
-          this.sparks.splice(i, 1);
-          continue;
+      if (this.sparks.length > 0) {
+        for (let i = this.sparks.length - 1; i >= 0; i--) {
+          const sp = this.sparks[i];
+          sp.x += sp.vx * dtScale;
+          sp.y += sp.vy * dtScale;
+          sp.vy += 0.06 * dtScale;
+          sp.life -= 0.032 * dtScale;
+          if (sp.life <= 0) {
+            this.sparks.splice(i, 1);
+            continue;
+          }
+          fctx.globalAlpha = Math.max(0, sp.life);
+          fctx.fillStyle = sp.color;
+          fctx.fillRect(Math.round(sp.x), Math.round(sp.y), sp.size, sp.size);
         }
-        fctx.globalAlpha = Math.max(0, sp.life);
-        fctx.fillStyle = sp.color;
-        fctx.fillRect(Math.round(sp.x), Math.round(sp.y), sp.size, sp.size);
+        fctx.globalAlpha = 1;
       }
-      fctx.globalAlpha = 1;
 
-      // 12. Foreground rising bubbles
+      // 12. Foreground rising bubbles (ambient bubbles batched in 1 stroke)
+      fctx.lineWidth = 1.5;
+      fctx.strokeStyle = 'rgba(195, 240, 255, 0.38)';
+      fctx.globalAlpha = 0.4;
+      fctx.beginPath();
+      let hasAmbientHighlight = false;
       for (let i = this.bubbles.length - 1; i >= 0; i--) {
         const b = this.bubbles[i];
-        b.y -= b.vy;
-        b.x += Math.sin(t * 2 + b.wobble) * 0.35;
+        b.y -= b.vy * dtScale;
+        b.x += Math.sin(t * 2 + b.wobble) * 0.35 * dtScale;
         if (b.ephemeral) {
-          b.life -= 0.016;
+          b.life -= 0.016 * dtScale;
           if (b.life <= 0) {
             this.bubbles.splice(i, 1);
             continue;
@@ -1734,9 +1891,30 @@
           b.x = Math.random() * this.width;
         }
         if (b.y <= waterlineScreenY + 4) continue;
+        if (!b.ephemeral) {
+          fctx.moveTo(b.x + b.r, b.y);
+          fctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          if (b.r >= 2) hasAmbientHighlight = true;
+        }
+      }
+      fctx.stroke();
+
+      if (hasAmbientHighlight) {
+        fctx.fillStyle = 'rgba(235, 250, 255, 0.72)';
+        for (let i = 0; i < this.bubbles.length; i++) {
+          const b = this.bubbles[i];
+          if (!b.ephemeral && b.r >= 2 && b.y > waterlineScreenY + 4) {
+            fctx.fillRect(Math.round(b.x - b.r * 0.4), Math.round(b.y - b.r * 0.4), 1.5, 1.5);
+          }
+        }
+      }
+
+      // Ephemeral colored chip bubbles
+      for (let i = 0; i < this.bubbles.length; i++) {
+        const b = this.bubbles[i];
+        if (!b.ephemeral || b.y <= waterlineScreenY + 4) continue;
         fctx.strokeStyle = b.color || 'rgba(195, 240, 255, 0.38)';
-        fctx.globalAlpha = b.ephemeral ? Math.max(0, b.life * 0.72) : 0.4;
-        fctx.lineWidth = 1.5;
+        fctx.globalAlpha = Math.max(0, b.life * 0.72);
         fctx.beginPath();
         fctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
         fctx.stroke();
@@ -1748,14 +1926,20 @@
       fctx.globalAlpha = 1;
 
       // 13. Right-Edge Canvas Depth Ruler (hidden behind Done dashboard)
-      if (!appEl || appEl.dataset.phase !== 'done') {
+      if (session.phase !== 'done') {
         this.drawDepthRuler(fctx, waterlineScreenY);
       }
-
-      ctx.restore();
-      fctx.restore();
     }
   }
+
+  OceanStage.DEPTH_STOPS = [
+    [0.00, '#1d5580', '#123a5e'],
+    [0.08, '#123a5e', '#0b1e38'],
+    [0.22, '#0b1526', '#081020'],
+    [0.50, '#081020', '#050a14'],
+    [0.78, '#050a14', '#03070f'],
+    [1.00, '#03070f', '#02050b']
+  ];
 
   function lerpHex(a, b, t) {
     const ah = parseInt(a.slice(1), 16);
@@ -1777,6 +1961,9 @@
       this.y = 200;
       this.prevX = 40;
       this.facing = 1;
+      this._lastOpacity = '';
+      this._lastElTransform = '';
+      this._lastSpriteTransform = '';
       this.spriteWrap = this.el.querySelector('.ds-mascot-sprite');
       this.applyBuddy();
       this.el.addEventListener('click', () => this.poke());
@@ -1786,6 +1973,27 @@
           this.poke();
         }
       });
+    }
+
+    _setOpacity(val) {
+      if (this._lastOpacity !== val) {
+        this._lastOpacity = val;
+        this.el.style.opacity = val;
+      }
+    }
+
+    _setTransform(val) {
+      if (this._lastElTransform !== val) {
+        this._lastElTransform = val;
+        this.el.style.transform = val;
+      }
+    }
+
+    _setSpriteTransform(val) {
+      if (this.spriteWrap && this._lastSpriteTransform !== val) {
+        this._lastSpriteTransform = val;
+        this.spriteWrap.style.transform = val;
+      }
     }
 
     applyBuddy() {
@@ -1799,9 +2007,7 @@
     }
 
     playAnim(cls) {
-      this.img.classList.remove('jet', 'chomp', 'dive');
-      void this.img.offsetWidth;
-      if (cls) this.img.classList.add(cls);
+      restartAnimClass(this.img, cls, ['jet', 'chomp', 'dive']);
     }
 
     setPanic() {
@@ -1831,27 +2037,26 @@
     }
 
     update(ts, phase) {
-      const vv = window.visualViewport;
-      const w = vv ? vv.width : window.innerWidth;
-      const h = vv ? vv.height : window.innerHeight;
+      const w = ocean.width;
+      const h = ocean.height;
       if (phase === 'done') {
         if (w < 560) {
-          this.el.style.opacity = '0';
+          this._setOpacity('0');
           return;
         }
-        this.el.style.opacity = '';
+        this._setOpacity('');
         this.x = Math.max(w - 110, w * 0.78);
         this.y = 115 + Math.sin(ts * 0.002) * 8;
-        this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(-6deg)`;
-        if (this.spriteWrap) this.spriteWrap.style.transform = '';
+        this._setTransform(`translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(-6deg)`);
+        this._setSpriteTransform('');
         return;
       }
-      this.el.style.opacity = '';
+      this._setOpacity('');
       if (appState.settings.lowPower) {
         this.x = phase === 'intro' ? Math.round(w - 108) : 28;
         this.y = phase === 'intro' ? Math.round(h * 0.62) : Math.round(h - 178);
-        this.el.style.transform = `translate3d(${this.x}px, ${this.y}px, 0) rotate(-4deg)`;
-        if (this.spriteWrap) this.spriteWrap.style.transform = '';
+        this._setTransform(`translate3d(${this.x}px, ${this.y}px, 0) rotate(-4deg)`);
+        this._setSpriteTransform('');
         return;
       }
       const t = ts * 0.0008;
@@ -1863,8 +2068,8 @@
         this.x = Math.max(16, Math.min(w - 88, cx + Math.cos(t) * rx));
         this.y = Math.max(76, Math.min(h - 165, cy + Math.sin(t * 1.6) * ry));
         const rot = Math.sin(t * 2.1) * 11;
-        this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
-        if (this.spriteWrap) this.spriteWrap.style.transform = (this.x - this.prevX) > 0.04 ? 'scaleX(-1)' : '';
+        this._setTransform(`translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`);
+        this._setSpriteTransform((this.x - this.prevX) > 0.04 ? 'scaleX(-1)' : '');
         this.prevX = this.x;
         return;
       }
@@ -1876,8 +2081,8 @@
         const diveY = h * 0.42 + Math.sin(t * 2.4) * 28 + 36;
         this.x = Math.max(18, Math.min(w - 86, diveX + Math.sin(t * 1.4) * 18));
         this.y = Math.max(88, Math.min(h - 130, diveY));
-        this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(52deg)`;
-        if (this.spriteWrap) this.spriteWrap.style.transform = 'scaleX(-1)';
+        this._setTransform(`translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(52deg)`);
+        this._setSpriteTransform('scaleX(-1)');
         this.prevX = this.x;
         return;
       }
@@ -1891,10 +2096,8 @@
       if (Math.abs(dx) > 0.05) this.facing = dx > 0 ? -1 : 1;
       this.prevX = this.x;
       const rot = -8 + kick * 18 + Math.sin(t * 1.6) * 6;
-      this.el.style.transform = `translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`;
-      if (this.spriteWrap) {
-        this.spriteWrap.style.transform = this.facing === -1 ? 'scaleX(-1)' : '';
-      }
+      this._setTransform(`translate3d(${this.x.toFixed(1)}px, ${this.y.toFixed(1)}px, 0) rotate(${rot.toFixed(1)}deg)`);
+      this._setSpriteTransform(this.facing === -1 ? 'scaleX(-1)' : '');
     }
   }
 
@@ -1909,6 +2112,7 @@
   const foreCanvas = document.getElementById('fore-canvas');
   const dimEl = document.getElementById('dim-overlay');
   const vignetteEl = document.getElementById('vignette');
+  const edgeGlowEl = document.getElementById('edge-glow');
   const crtEl = document.getElementById('crt');
 
   const heroTitleEl = document.getElementById('hero-title');
@@ -1955,6 +2159,7 @@
 
   const ocean = new OceanStage(seaCanvas, foreCanvas, worldEl);
   const mascot = new MascotController(document.getElementById('mascot'), document.getElementById('mascot-img'));
+  let modalOpen = false;
 
   // ---------------- Static World Elements ----------------
   function initStaticDecor() {
@@ -2001,8 +2206,8 @@
     results: [],
     pendingSuggestion: null, // { typed, answer }
     previewTimer: null,
-    answerTimerRaf: null,
-    feedbackAnimRaf: null,
+    answeringTimer: null,
+    descentAnim: null,
     answerDeadline: 0,
     lastShownSecond: ROUND_SECONDS
   };
@@ -2017,9 +2222,7 @@
         requestAnimationFrame(syncViewportLayout);
       }
     }
-    crtEl.classList.remove('zap');
-    void crtEl.offsetWidth;
-    crtEl.classList.add('zap');
+    restartAnimClass(crtEl, 'zap');
   }
 
   function applySettingsToDom() {
@@ -2047,13 +2250,19 @@
       clearInterval(session.previewTimer);
       session.previewTimer = null;
     }
-    if (session.answerTimerRaf) {
-      cancelAnimationFrame(session.answerTimerRaf);
-      session.answerTimerRaf = null;
-    }
-    if (session.feedbackAnimRaf) {
-      cancelAnimationFrame(session.feedbackAnimRaf);
-      session.feedbackAnimRaf = null;
+    session.answeringTimer = null;
+    session.descentAnim = null;
+  }
+
+  function scheduleIndexPrewarm(prompt) {
+    if (!prompt || prompt._index || !hasLoadedAnswers(prompt)) return;
+    const run = () => {
+      if (hasLoadedAnswers(prompt) && !prompt._index) getPromptIndex(prompt);
+    };
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(run, { timeout: 600 });
+    } else {
+      setTimeout(run, 120);
     }
   }
 
@@ -2092,7 +2301,7 @@
     correctionBoxEl.innerHTML = '';
     rejectBoxEl.hidden = true;
     rejectBoxEl.textContent = '';
-    appEl.style.setProperty('--ds-urgency', '0');
+    edgeGlowEl.style.setProperty('--ds-urgency', '0');
     appEl.classList.remove('hot');
     answerForm.classList.remove('hot');
     floorEl.style.display = mode === 'endless' ? 'none' : 'block';
@@ -2223,7 +2432,7 @@
   }
 
   function updateHud() {
-    hudDepthEl.textContent = `${session.totalDepthM.toLocaleString('ru-RU')}м`;
+    hudDepthEl.textContent = `${RU_NUM_FMT.format(session.totalDepthM)}м`;
     hudScoreEl.textContent = String(session.totalScore);
     endlessSurfaceBtn.hidden = session.mode !== 'endless' || session.results.length === 0;
 
@@ -2252,6 +2461,7 @@
     const loadPromise = (DATA.loadPromptAnswers && !hasLoadedAnswers(prompt))
       ? DATA.loadPromptAnswers(prompt.id)
       : Promise.resolve(prompt.answers);
+    loadPromise.then(() => scheduleIndexPrewarm(prompt));
     if (DATA.preloadPrompts && session.prompts[session.roundIndex + 1]) {
       DATA.preloadPrompts([session.prompts[session.roundIndex + 1]]);
     }
@@ -2267,7 +2477,7 @@
     rejectBoxEl.hidden = true;
     rejectBoxEl.textContent = '';
     session.pendingSuggestion = null;
-    appEl.style.setProperty('--ds-urgency', '0');
+    edgeGlowEl.style.setProperty('--ds-urgency', '0');
     appEl.classList.remove('hot');
     answerForm.classList.remove('hot');
 
@@ -2351,49 +2561,59 @@
     }, 60);
 
     const durationMs = ROUND_SECONDS * 1000;
-    session.answerDeadline = performance.now() + durationMs;
+    const deadline = performance.now() + durationMs;
+    session.answerDeadline = deadline;
     session.lastShownSecond = ROUND_SECONDS;
+    session.answeringTimer = {
+      durationMs,
+      deadline,
+      hotAdded: false,
+      lastUrg: ''
+    };
+  }
 
-    const step = (now) => {
-      if (session.phase !== 'answering') return;
-      const remMs = Math.max(0, session.answerDeadline - now);
-      const frac = remMs / durationMs;
-      const sec = Math.ceil(remMs / 1000);
+  function tickAnswering(now) {
+    const timer = session.answeringTimer;
+    if (!timer || session.phase !== 'answering') return;
 
-      fuseFillEl.style.transform = `scaleX(${frac.toFixed(4)})`;
+    const remMs = Math.max(0, timer.deadline - now);
+    const frac = remMs / timer.durationMs;
+    const sec = Math.ceil(remMs / 1000);
 
-      if (sec !== session.lastShownSecond) {
-        session.lastShownSecond = sec;
-        timerDigitsEl.textContent = String(sec);
-        if (sec <= 5 && sec > 0) {
-          sfx.urgentTick();
-        }
+    fuseFillEl.style.transform = `scaleX(${frac.toFixed(4)})`;
+
+    if (sec !== session.lastShownSecond) {
+      session.lastShownSecond = sec;
+      timerDigitsEl.textContent = String(sec);
+      if (sec <= 5 && sec > 0) {
+        sfx.urgentTick();
       }
+    }
 
-      if (remMs <= 5000) {
+    if (remMs <= 5000) {
+      if (!timer.hotAdded) {
+        timer.hotAdded = true;
         answerForm.classList.add('hot');
         appEl.classList.add('hot');
         timerDigitsEl.classList.add('hot');
         mascot.setPanic(true);
-        const urg = ((5000 - remMs) / 5000).toFixed(3);
-        appEl.style.setProperty('--ds-urgency', urg);
       }
-
-      if (remMs <= 0) {
-        handleTimeout();
-        return;
+      const urg = ((5000 - remMs) / 5000).toFixed(2);
+      if (urg !== timer.lastUrg) {
+        timer.lastUrg = urg;
+        edgeGlowEl.style.setProperty('--ds-urgency', urg);
       }
+    }
 
-      session.answerTimerRaf = requestAnimationFrame(step);
-    };
-
-    session.answerTimerRaf = requestAnimationFrame(step);
+    if (remMs <= 0) {
+      handleTimeout();
+    }
   }
 
   function handleTimeout() {
     clearTimers();
     mascot.setPanic(false);
-    appEl.style.setProperty('--ds-urgency', '0');
+    edgeGlowEl.style.setProperty('--ds-urgency', '0');
     appEl.classList.remove('hot');
     answerForm.classList.remove('hot');
 
@@ -2439,9 +2659,7 @@
     rejectBoxEl.appendChild(msgSpan);
     rejectBoxEl.appendChild(repBtn);
     rejectBoxEl.hidden = false;
-    rejectBoxEl.classList.remove('ds-reject-shake');
-    void rejectBoxEl.offsetWidth;
-    rejectBoxEl.classList.add('ds-reject-shake');
+    restartAnimClass(rejectBoxEl, 'ds-reject-shake');
 
     if (appState.settings.clearRejected) {
       answerInput.value = '';
@@ -2517,7 +2735,7 @@
     rejectBoxEl.hidden = true;
     rejectBoxEl.textContent = '';
     session.pendingSuggestion = null;
-    appEl.style.setProperty('--ds-urgency', '0');
+    edgeGlowEl.style.setProperty('--ds-urgency', '0');
     appEl.classList.remove('hot');
     answerForm.classList.remove('hot');
 
@@ -2584,64 +2802,101 @@
     roundLayerEl.innerHTML = html;
 
     const chipEl = document.getElementById('sinking-chip');
-    const lineEls = Array.from(roundLayerEl.querySelectorAll('.ds-tierline'));
-    const crossed = new Set();
+    const lines = Array.from(roundLayerEl.querySelectorAll('.ds-tierline')).map((el) => {
+      const idx = Number(el.dataset.tierIdx);
+      const top = Number(el.dataset.top);
+      const hex = tierList[idx] ? DATA.TIERS[tierList[idx]].hex : tier.hex;
+      return { el, idx, top, hex, crossed: false };
+    });
 
     const descentDuration = tierId === 'miss' ? 950 : Math.min(2700, 1250 + tier.depth * 1.45);
-    const t0 = performance.now();
+    const hasOrbit = tierId === 'schooler' || tierId === 'krillion';
+    ocean.orbitEffect = hasOrbit ? { kind: tierId, x: ocean.width * 0.5, y: ocean.worldOffset + basePx + 40, hex: tier.hex } : null;
 
-    const animateDescent = (now) => {
-      const p = Math.min(1, (now - t0) / descentDuration);
-      const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    session.descentAnim = {
+      t0: performance.now(),
+      duration: descentDuration,
+      basePx,
+      targetPx,
+      startDepthM,
+      startScore,
+      tierId,
+      tier,
+      resultRecord,
+      chipEl,
+      lines,
+      hasOrbit,
+      bubbleAccum: 0,
+      lastMeters: startDepthM,
+      lastPts: startScore,
+      lastVig: ''
+    };
+  }
 
-      const curPx = basePx + (targetPx - basePx) * ease;
-      const chipY = (basePx + 40) + (targetPx - (basePx + 40)) * ease;
-      const swayX = Math.sin(p * Math.PI * 3) * (tierId === 'miss' ? 2 : 11) * (1 - p);
-      const tilt = Math.sin(p * Math.PI * 3) * 4 * (1 - p);
+  function tickDescent(now, dtScale) {
+    const anim = session.descentAnim;
+    if (!anim) return;
 
-      ocean.setCameraDepthPx(curPx, 0.38);
-      chipEl.style.transform = `translate3d(calc(-50% + ${swayX.toFixed(1)}px), ${chipY.toFixed(1)}px, 0) rotate(${tilt.toFixed(1)}deg)`;
+    const p = Math.min(1, (now - anim.t0) / anim.duration);
+    const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
 
-      const screenY = ocean.worldOffset + chipY;
-      const screenX = ocean.width * 0.5 + swayX;
-      if (tierId === 'schooler' || tierId === 'krillion') {
-        ocean.orbitEffect = { kind: tierId, x: screenX, y: screenY, hex: tier.hex };
-      } else {
-        ocean.orbitEffect = null;
-      }
+    const curPx = anim.basePx + (anim.targetPx - anim.basePx) * ease;
+    const chipY = (anim.basePx + 40) + (anim.targetPx - (anim.basePx + 40)) * ease;
+    const swayX = Math.sin(p * Math.PI * 3) * (anim.tierId === 'miss' ? 2 : 11) * (1 - p);
+    const tilt = Math.sin(p * Math.PI * 3) * 4 * (1 - p);
 
-      if (tierId !== 'miss' && p < 0.96) {
-        ocean.spawnChipBubbles(screenX, screenY, tier.hex);
-        if (tierId === 'rare' && Math.random() < 0.25) {
+    ocean.setCameraDepthPx(curPx, 0.38);
+    anim.chipEl.style.transform = `translate3d(calc(-50% + ${swayX.toFixed(1)}px), ${chipY.toFixed(1)}px, 0) rotate(${tilt.toFixed(1)}deg)`;
+
+    const screenY = ocean.worldOffset + chipY;
+    const screenX = ocean.width * 0.5 + swayX;
+    if (anim.hasOrbit && ocean.orbitEffect) {
+      ocean.orbitEffect.x = screenX;
+      ocean.orbitEffect.y = screenY;
+    }
+
+    if (anim.tierId !== 'miss' && p < 0.96) {
+      anim.bubbleAccum += dtScale;
+      if (anim.bubbleAccum >= 1) {
+        anim.bubbleAccum -= Math.floor(anim.bubbleAccum);
+        ocean.spawnChipBubbles(screenX, screenY, anim.tier.hex);
+        if (anim.tierId === 'rare' && Math.random() < 0.25) {
           ocean.spawnInkPuff(screenX, screenY);
         }
       }
+    }
 
-      lineEls.forEach((le) => {
-        const idx = Number(le.dataset.tierIdx);
-        const lTop = Number(le.dataset.top);
-        if (chipY >= lTop && !crossed.has(idx)) {
-          crossed.add(idx);
-          le.classList.add('passed');
-          sfx.crossTier(idx);
-          ocean.spawnBurst(screenX, ocean.worldOffset + lTop, tierList[idx] ? DATA.TIERS[tierList[idx]].hex : tier.hex, 10);
-        }
-      });
-
-      const curMeters = Math.round(startDepthM + tier.depth * ease);
-      const curPts = Math.round(startScore + tier.pts * ease);
-      hudDepthEl.textContent = `${curMeters.toLocaleString('ru-RU')}м`;
-      hudScoreEl.textContent = String(curPts);
-      vignetteEl.style.opacity = (0.25 + Math.min(0.65, curMeters / 9500)).toFixed(3);
-
-      if (p < 1) {
-        session.feedbackAnimRaf = requestAnimationFrame(animateDescent);
-      } else {
-        onChipLanded(resultRecord, targetPx, tier);
+    const lines = anim.lines;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.crossed && chipY >= line.top) {
+        line.crossed = true;
+        line.el.classList.add('passed');
+        sfx.crossTier(line.idx);
+        ocean.spawnBurst(screenX, ocean.worldOffset + line.top, line.hex, 10);
       }
-    };
+    }
 
-    session.feedbackAnimRaf = requestAnimationFrame(animateDescent);
+    const curMeters = Math.round(anim.startDepthM + anim.tier.depth * ease);
+    const curPts = Math.round(anim.startScore + anim.tier.pts * ease);
+    if (curMeters !== anim.lastMeters) {
+      anim.lastMeters = curMeters;
+      hudDepthEl.textContent = `${RU_NUM_FMT.format(curMeters)}м`;
+    }
+    if (curPts !== anim.lastPts) {
+      anim.lastPts = curPts;
+      hudScoreEl.textContent = String(curPts);
+    }
+    const vig = (0.25 + Math.min(0.65, curMeters / 9500)).toFixed(2);
+    if (vig !== anim.lastVig) {
+      anim.lastVig = vig;
+      vignetteEl.style.opacity = vig;
+    }
+
+    if (p >= 1) {
+      session.descentAnim = null;
+      onChipLanded(anim.resultRecord, anim.targetPx, anim.tier);
+    }
   }
 
   function onChipLanded(record, targetPx, tier) {
@@ -2650,15 +2905,11 @@
     updateHud();
 
     if (tier.pts > 0) {
-      scorePodEl.classList.remove('slam');
-      void scorePodEl.offsetWidth;
-      scorePodEl.classList.add('slam');
+      restartAnimClass(scorePodEl, 'slam');
       ocean.spawnBurst(ocean.width * 0.5, ocean.worldOffset + targetPx, tier.hex, 22);
     }
 
-    stageEl.classList.remove('ds-shake');
-    void stageEl.offsetWidth;
-    stageEl.classList.add('ds-shake');
+    restartAnimClass(stageEl, 'ds-shake');
     dimEl.classList.add('on');
 
     const chip = document.getElementById('sinking-chip');
@@ -3566,6 +3817,7 @@
     if (el) {
       el.hidden = false;
       el.classList.add('open');
+      modalOpen = true;
     }
   }
 
@@ -3673,6 +3925,7 @@
   })();
 
   function closeAllModals() {
+    modalOpen = false;
     document.querySelectorAll('.ds-modal-backdrop').forEach((el) => {
       el.classList.remove('open');
       el.hidden = true;
@@ -4032,6 +4285,7 @@
 
   let maxViewportH = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   let prevViewportW = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  let lastVvh = 0;
 
   function syncViewportLayout() {
     const vv = window.visualViewport;
@@ -4045,7 +4299,12 @@
       maxViewportH = h;
     }
 
-    document.documentElement.style.setProperty('--vvh', `${Math.round(h)}px`);
+    const roundH = Math.round(h);
+    if (roundH !== lastVvh) {
+      lastVvh = roundH;
+      document.documentElement.style.setProperty('--vvh', `${roundH}px`);
+    }
+
     const isTouchWidth = w <= 900 || 'ontouchstart' in window;
     const isKbOpen = session.phase === 'answering' && isTouchWidth && (h < maxViewportH * 0.78);
     document.documentElement.classList.toggle('kb-open', isKbOpen);
@@ -4055,6 +4314,9 @@
     }
 
     ocean.resize();
+    // Do not snap camera to final depth while descent animation is actively running
+    if (session.descentAnim) return;
+
     if (session.phase === 'intro') {
       ocean.setCameraDepthPx(0, 0.54);
     } else if (session.phase === 'done') {
@@ -4090,10 +4352,47 @@
   applySettingsToDom();
   openMode('daily');
 
+  let mainRafId = 0;
+  let lastFrameTs = 0;
+  let lastBgRenderTs = 0;
+
   function loop(ts) {
-    ocean.render(ts);
-    mascot.update(ts, session.phase);
-    requestAnimationFrame(loop);
+    mainRafId = 0;
+    if (document.hidden) return;
+
+    const now = performance.now();
+    const dt = lastFrameTs ? Math.min(50, Math.max(4, ts - lastFrameTs)) : 16.6667;
+    lastFrameTs = ts;
+    const dtScale = dt / 16.6667;
+
+    if (session.answeringTimer) {
+      tickAnswering(now);
+    }
+    if (session.descentAnim) {
+      tickDescent(now, dtScale);
+    }
+
+    // Throttle background ocean redraws while scrolling Done summary or modals
+    const isBackground = (session.phase === 'done' || modalOpen) && !session.descentAnim;
+    if (!isBackground || (ts - lastBgRenderTs) >= 40) {
+      const renderDtScale = isBackground && lastBgRenderTs
+        ? Math.min(3, (ts - lastBgRenderTs) / 16.6667)
+        : dtScale;
+      lastBgRenderTs = ts;
+      ocean.render(ts, renderDtScale);
+      mascot.update(ts, session.phase);
+    }
+
+    mainRafId = requestAnimationFrame(loop);
   }
-  requestAnimationFrame(loop);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && !mainRafId) {
+      lastFrameTs = 0;
+      lastBgRenderTs = 0;
+      mainRafId = requestAnimationFrame(loop);
+    }
+  });
+
+  mainRafId = requestAnimationFrame(loop);
 })();
