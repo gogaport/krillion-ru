@@ -2065,7 +2065,7 @@
   {
     "id": "ship-boat-type",
     "text": "Назови тип корабля, судна или лодки (исторический или современный)",
-    "count": 92,
+    "count": 224,
     "strictShape": false
   }
 ].map((p) => Object.assign(p, { answers: null }));
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261122b`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125a`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
