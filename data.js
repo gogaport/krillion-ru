@@ -1933,7 +1933,7 @@
   {
     "id": "bathroom-item",
     "text": "Назови предмет, который обычно стоит или лежит в ванной комнате",
-    "count": 98,
+    "count": 116,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125f`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125g`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
