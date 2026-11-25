@@ -13,7 +13,7 @@
   <meta name="theme-color" content="#050a14">
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
   <link rel="alternate icon" href="favicon.ico?v=2">
-  <link rel="stylesheet" href="style.css?v=20261124a">
+  <link rel="stylesheet" href="style.css?v=20261125b">
 </head>
 <body>
   <div id="app" class="ds-root" data-world="ocean" data-phase="intro">
@@ -87,6 +87,7 @@
       <svg viewBox="0 0 20 20" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">
         <path d="M2 4h16v2.5H2zm0 5h16v2.5H2zm0 5h16v2.5H2z"></path>
       </svg>
+      <span id="menu-reply-dot" class="ds-reply-dot" hidden aria-hidden="true"></span>
     </button>
 
     <button id="mute-btn" class="ds-mute" type="button" aria-label="Выключить звук" aria-pressed="false">
@@ -112,6 +113,18 @@
         <path fill-rule="evenodd" d="M4 3H8V5H4Z M12 3H16V5H12Z M2 5H18V9H2Z M5 9H15V17H5Z M9 5H11V7H9Z"></path>
       </svg>
     </button>
+
+    <!-- Developer Reply Notification Toast -->
+    <div id="reply-toast" class="ds-reply-toast" role="status" aria-live="polite" hidden>
+      <button type="button" id="reply-toast-open" class="ds-reply-toast-body">
+        <span class="ds-reply-toast-icon" aria-hidden="true">✉</span>
+        <span class="ds-reply-toast-text">
+          <span class="ds-reply-toast-eyebrow">ОТВЕТ ОТ РАЗРАБОТЧИКА</span>
+          <span id="reply-toast-preview" class="ds-reply-toast-preview"></span>
+        </span>
+      </button>
+      <button type="button" id="reply-toast-close" class="ds-reply-toast-close" aria-label="Скрыть уведомление">×</button>
+    </div>
 
     <!-- Intro Controls -->
     <div id="intro-bar" class="ds-intro">
@@ -247,6 +260,7 @@
           <button type="button" class="ds-menu-tile ds-menu-wide ds-menu-bug" data-nav="bugreport">
             <span class="ds-menu-icon">⚑</span>
             <span class="ds-menu-lbl">Сообщить об ошибке или ответе</span>
+            <span id="menu-bug-badge" class="ds-bug-badge" hidden></span>
           </button>
         </nav>
       </div>
@@ -421,9 +435,16 @@
           </div>
           <button type="button" class="ds-dialog-close" data-close-modal aria-label="Закрыть окно">X</button>
         </div>
-        <p class="ds-modal-sub">
+        <p id="bug-modal-sub" class="ds-modal-sub">
           Не засчитался правильный ответ, нашли неточность в вопросе или баг интерфейса? Опишите ниже — данные подставятся автоматически.
         </p>
+
+        <div id="bug-tabs" class="ds-bug-tabs" role="tablist" aria-label="Разделы обратной связи" hidden>
+          <button type="button" id="bug-tab-new" class="ds-bug-tab" role="tab" aria-selected="true" data-bug-tab="new">НОВОЕ ОБРАЩЕНИЕ</button>
+          <button type="button" id="bug-tab-inbox" class="ds-bug-tab" role="tab" aria-selected="false" data-bug-tab="inbox">
+            МОИ ОБРАЩЕНИЯ <span id="bug-tab-count" class="ds-bug-tab-badge"></span>
+          </button>
+        </div>
 
         <form id="bugreport-form" class="ds-bug-form" autocomplete="off">
           <input id="bug-category" type="hidden" value="missing-answer">
@@ -473,8 +494,16 @@
               <a id="bug-discord-link" class="ds-action-btn ds-bug-sec" href="https://discord.com/users/445629054708613141" target="_blank" rel="noopener">DISCORD АВТОРА ↗</a>
             </div>
           </div>
-          <p id="bug-hint" class="ds-bug-hint">Сообщение придёт напрямую автору в Telegram-бота. Если хотите получить ответ, укажите свой @username или email.</p>
+          <p id="bug-hint" class="ds-bug-hint">Сообщение придёт автору в Telegram. Ответ появится прямо здесь на сайте во вкладке «Мои обращения» (контакт указывать необязательно).</p>
         </form>
+
+        <div id="bug-inbox" class="ds-bug-inbox" role="tabpanel" hidden>
+          <div class="ds-bug-inbox-bar">
+            <span class="ds-bug-inbox-hint">Ответы автора хранятся 90 дней и приходят прямо сюда.</span>
+            <button type="button" id="bug-inbox-refresh" class="ds-bug-refresh-btn">ОБНОВИТЬ ↻</button>
+          </div>
+          <div id="bug-inbox-list" class="ds-bug-inbox-list"></div>
+        </div>
       </div>
     </div>
 
@@ -498,6 +527,6 @@
   </div>
 
   <script src="data.js?v=20261125b"></script>
-  <script src="app.js?v=20261124a"></script>
+  <script src="app.js?v=20261125b"></script>
 </body>
 </html>

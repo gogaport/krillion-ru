@@ -3675,8 +3675,302 @@
 
   // URL вашего Cloudflare Worker (см. инструкцию в bot/README.md)
   const FEEDBACK_ENDPOINT = 'https://krillion-feedback-bot.yehorsemenyuta.workers.dev/feedback';
+  const REPLIES_ENDPOINT = FEEDBACK_ENDPOINT.replace(/\/feedback\/?$/, '/replies');
+  const REPORTS_STORAGE_KEY = 'krillion_reports_v1';
+  const MAX_SAVED_REPORTS = 15;
   const FEEDBACK_COOLDOWN_MS = 30_000;
   let lastFeedbackSentAt = 0;
+  let lastRepliesSyncAt = 0;
+  let replyToastDismissed = false;
+  let activeBugTab = 'new';
+
+  const REPORT_CATEGORY_LABELS = {
+    'missing-answer': '❓ Нет ответа в базе',
+    'wrong-tier': '⚖️ Спорная редкость',
+    'ui-bug': '🐛 Технический баг',
+    'suggestion': '💡 Идея / новая тема'
+  };
+
+  function generateReportId() {
+    try {
+      if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+        const bytes = new Uint8Array(12);
+        window.crypto.getRandomValues(bytes);
+        return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      }
+    } catch (_) {}
+    return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  }
+
+  function loadSavedReports() {
+    try {
+      const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((r) => r && typeof r.id === 'string' && r.id.length >= 8);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function saveSavedReports(list) {
+    try {
+      localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(list.slice(0, MAX_SAVED_REPORTS)));
+    } catch (_) {}
+  }
+
+  function getUnreadReplyKey(reportId, replyId) {
+    return `${reportId}:${replyId}`;
+  }
+
+  function getUnreadRepliesInfo(reports) {
+    let unreadCount = 0;
+    let latestUnread = null;
+    for (const rep of reports) {
+      const replies = Array.isArray(rep.replies) ? rep.replies : [];
+      const seenSet = new Set(Array.isArray(rep.seenReplyIds) ? rep.seenReplyIds.map(String) : []);
+      for (const r of replies) {
+        const rid = String(r.id || '');
+        if (!rid || seenSet.has(rid)) continue;
+        unreadCount += 1;
+        if (!latestUnread || (r.at || 0) >= (latestUnread.reply.at || 0)) {
+          latestUnread = { report: rep, reply: r };
+        }
+      }
+    }
+    return { unreadCount, latestUnread };
+  }
+
+  function pluralizeRu(n, one, few, many) {
+    const abs = Math.abs(n) % 100;
+    const last = abs % 10;
+    if (abs > 10 && abs < 20) return many;
+    if (last > 1 && last < 5) return few;
+    if (last === 1) return one;
+    return many;
+  }
+
+  function updateReplyIndicators() {
+    const reports = loadSavedReports();
+    const { unreadCount, latestUnread } = getUnreadRepliesInfo(reports);
+
+    const menuDot = document.getElementById('menu-reply-dot');
+    if (menuDot) menuDot.hidden = unreadCount === 0;
+
+    const menuBadge = document.getElementById('menu-bug-badge');
+    if (menuBadge) {
+      menuBadge.hidden = unreadCount === 0;
+      if (unreadCount > 0) {
+        menuBadge.textContent = `+${unreadCount} ${pluralizeRu(unreadCount, 'ответ', 'ответа', 'ответов')}`;
+      }
+    }
+
+    const tabsEl = document.getElementById('bug-tabs');
+    if (tabsEl) tabsEl.hidden = reports.length === 0;
+
+    const tabCountEl = document.getElementById('bug-tab-count');
+    if (tabCountEl) {
+      tabCountEl.textContent = unreadCount > 0 ? `+${unreadCount}` : String(reports.length);
+      tabCountEl.classList.toggle('has-unread', unreadCount > 0);
+    }
+
+    const toastEl = document.getElementById('reply-toast');
+    const previewEl = document.getElementById('reply-toast-preview');
+    if (toastEl && previewEl) {
+      if (latestUnread && !replyToastDismissed && !modalOpen) {
+        const prefix = latestUnread.report.answer ? `«${latestUnread.report.answer}»: ` : '';
+        previewEl.textContent = `${prefix}${latestUnread.reply.text}`;
+        toastEl.hidden = false;
+      } else {
+        toastEl.hidden = true;
+      }
+    }
+  }
+
+  function markAllRepliesSeen() {
+    const reports = loadSavedReports();
+    let changed = false;
+    for (const rep of reports) {
+      const replies = Array.isArray(rep.replies) ? rep.replies : [];
+      if (!replies.length) continue;
+      const seenSet = new Set(Array.isArray(rep.seenReplyIds) ? rep.seenReplyIds.map(String) : []);
+      for (const r of replies) {
+        const rid = String(r.id || '');
+        if (rid && !seenSet.has(rid)) {
+          seenSet.add(rid);
+          changed = true;
+        }
+      }
+      rep.seenReplyIds = Array.from(seenSet);
+    }
+    if (changed) saveSavedReports(reports);
+    updateReplyIndicators();
+  }
+
+  function formatReportDate(ts) {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function renderReportsInbox(freshUnreadKeys) {
+    const listEl = document.getElementById('bug-inbox-list');
+    if (!listEl) return;
+    const reports = loadSavedReports();
+    if (!reports.length) {
+      listEl.innerHTML = '<div class="ds-bug-inbox-empty">Вы ещё не отправляли обращений с этого устройства.</div>';
+      return;
+    }
+
+    const unreadSet = freshUnreadKeys || new Set();
+    listEl.innerHTML = reports.map((rep) => {
+      const catLabel = REPORT_CATEGORY_LABELS[rep.category] || '📩 Обратная связь';
+      const replies = Array.isArray(rep.replies) ? rep.replies : [];
+      const hasUnread = replies.some((r) => unreadSet.has(getUnreadReplyKey(rep.id, r.id)));
+      const metaParts = [];
+      if (rep.answer) metaParts.push(`Ответ: <b>«${escapeHtml(rep.answer)}»</b>`);
+      if (rep.prompt) metaParts.push(`Тема: ${escapeHtml(rep.prompt)}`);
+
+      const repliesHtml = replies.length
+        ? replies.map((r) => {
+            const isNew = unreadSet.has(getUnreadReplyKey(rep.id, r.id));
+            const safeText = escapeHtml(r.text || '').replace(/\n/g, '<br>');
+            return `
+              <div class="ds-report-reply">
+                <div class="ds-report-reply-head">
+                  <span>КРИЛЛИОН · ответ автора${r.at ? ` · ${escapeHtml(formatReportDate(r.at))}` : ''}</span>
+                  ${isNew ? '<span class="ds-report-reply-new">НОВОЕ</span>' : ''}
+                </div>
+                <div class="ds-report-reply-text">${safeText}</div>
+              </div>
+            `;
+          }).join('')
+        : '<span class="ds-report-wait">⏳ Отправлено · ждёт ответа</span>';
+
+      return `
+        <div class="ds-report-card${replies.length ? ' has-reply' : ''}${hasUnread ? ' is-unread' : ''}">
+          <div class="ds-report-head">
+            <span class="ds-report-cat">${escapeHtml(catLabel)}</span>
+            <span class="ds-report-date">${escapeHtml(formatReportDate(rep.createdAt))}</span>
+          </div>
+          ${metaParts.length ? `<div class="ds-report-meta">${metaParts.join(' · ')}</div>` : ''}
+          ${rep.description ? `<div class="ds-report-desc">${escapeHtml(rep.description)}</div>` : ''}
+          ${repliesHtml}
+        </div>
+      `;
+    }).join('');
+  }
+
+  function snapshotUnreadKeys() {
+    const reports = loadSavedReports();
+    const keys = new Set();
+    for (const rep of reports) {
+      const replies = Array.isArray(rep.replies) ? rep.replies : [];
+      const seenSet = new Set(Array.isArray(rep.seenReplyIds) ? rep.seenReplyIds.map(String) : []);
+      for (const r of replies) {
+        const rid = String(r.id || '');
+        if (rid && !seenSet.has(rid)) keys.add(getUnreadReplyKey(rep.id, rid));
+      }
+    }
+    return keys;
+  }
+
+  function setBugTab(tab) {
+    const reports = loadSavedReports();
+    const resolved = tab === 'inbox' && reports.length > 0 ? 'inbox' : 'new';
+    activeBugTab = resolved;
+
+    const formEl = document.getElementById('bugreport-form');
+    const subEl = document.getElementById('bug-modal-sub');
+    const inboxEl = document.getElementById('bug-inbox');
+    const tabNew = document.getElementById('bug-tab-new');
+    const tabInbox = document.getElementById('bug-tab-inbox');
+
+    if (formEl) formEl.hidden = resolved !== 'new';
+    if (subEl) subEl.hidden = resolved !== 'new';
+    if (inboxEl) inboxEl.hidden = resolved !== 'inbox';
+    if (tabNew) tabNew.setAttribute('aria-selected', String(resolved === 'new'));
+    if (tabInbox) tabInbox.setAttribute('aria-selected', String(resolved === 'inbox'));
+
+    if (resolved === 'inbox') {
+      const freshUnread = snapshotUnreadKeys();
+      renderReportsInbox(freshUnread);
+      markAllRepliesSeen();
+      syncReportReplies(false);
+    }
+  }
+
+  async function syncReportReplies(force) {
+    if (!REPLIES_ENDPOINT) return false;
+    const reports = loadSavedReports();
+    if (!reports.length) return false;
+
+    const now = Date.now();
+    if (!force && now - lastRepliesSyncAt < 15_000) return false;
+    lastRepliesSyncAt = now;
+
+    try {
+      const resp = await fetch(REPLIES_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: reports.map((r) => r.id) })
+      });
+      if (!resp.ok) return false;
+      const data = await resp.json().catch(() => null);
+      if (!data || !data.ok || !data.items || typeof data.items !== 'object') return false;
+
+      const freshReports = loadSavedReports();
+      let changed = false;
+      let hasNewUnread = false;
+
+      for (const rep of freshReports) {
+        const remote = data.items[rep.id];
+        if (!remote || !Array.isArray(remote.replies)) continue;
+
+        const prevReplies = Array.isArray(rep.replies) ? rep.replies : [];
+        const prevMap = new Map(prevReplies.map((r) => [String(r.id), r.text]));
+        const seenSet = new Set(Array.isArray(rep.seenReplyIds) ? rep.seenReplyIds.map(String) : []);
+
+        for (const r of remote.replies) {
+          const rid = String(r.id || '');
+          if (!rid) continue;
+          if (!prevMap.has(rid) || prevMap.get(rid) !== r.text) {
+            changed = true;
+            if (!seenSet.has(rid)) hasNewUnread = true;
+          }
+        }
+        if (remote.replies.length !== prevReplies.length) changed = true;
+        rep.replies = remote.replies;
+      }
+
+      if (changed) {
+        saveSavedReports(freshReports);
+        if (hasNewUnread) replyToastDismissed = false;
+      }
+
+      const bugBackdrop = document.getElementById('bugreport-backdrop');
+      const inboxOpen = bugBackdrop && !bugBackdrop.hidden && activeBugTab === 'inbox';
+      if (inboxOpen) {
+        const freshUnread = snapshotUnreadKeys();
+        renderReportsInbox(freshUnread);
+        markAllRepliesSeen();
+      } else {
+        updateReplyIndicators();
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   function setBugStatus(message, type) {
     const statusEl = document.getElementById('bug-status');
@@ -3726,7 +4020,15 @@
     if (hpEl) hpEl.value = '';
     setBugStatus('');
 
+    const reports = loadSavedReports();
+    const { unreadCount } = getUnreadRepliesInfo(reports);
+    const hasExplicitPrefill = Boolean(prefill && (prefill.promptText || prefill.answerText || prefill.descText));
+    const desiredTab = (prefill && prefill.tab)
+      || (!hasExplicitPrefill && unreadCount > 0 ? 'inbox' : 'new');
+
     openModal('bugreport-backdrop');
+    updateReplyIndicators();
+    setBugTab(desiredTab);
   }
 
   function buildBugReportPayload() {
@@ -3819,6 +4121,7 @@
       el.classList.add('open');
       modalOpen = true;
     }
+    updateReplyIndicators();
   }
 
   function renderCodex(query = '') {
@@ -3930,6 +4233,7 @@
       el.classList.remove('open');
       el.hidden = true;
     });
+    updateReplyIndicators();
   }
 
   function renderWardrobe() {
@@ -4211,19 +4515,39 @@
       }
       setBugStatus('');
 
+      const clientReportId = generateReportId();
+      const payloadToSend = Object.assign({}, raw, { reportId: clientReportId });
+
       try {
         const resp = await fetch(FEEDBACK_ENDPOINT, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(raw),
+          body: JSON.stringify(payloadToSend),
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok || !data.ok) {
           throw new Error(data.error || 'Не удалось отправить сообщение.');
         }
 
+        const savedId = typeof data.reportId === 'string' && data.reportId.length >= 8
+          ? data.reportId
+          : clientReportId;
+        const reports = loadSavedReports().filter((r) => r.id !== savedId);
+        reports.unshift({
+          id: savedId,
+          createdAt: Date.now(),
+          category: raw.category,
+          prompt: raw.prompt,
+          answer: raw.answer,
+          description: raw.description,
+          replies: [],
+          seenReplyIds: []
+        });
+        saveSavedReports(reports);
+        updateReplyIndicators();
+
         lastFeedbackSentAt = Date.now();
-        setBugStatus('Отправлено в Telegram! Спасибо за обратную связь ✓', 'ok');
+        setBugStatus('Отправлено! Ответ автора появится во вкладке «Мои обращения» ✓', 'ok');
         const descEl = document.getElementById('bug-desc');
         if (descEl) descEl.value = '';
       } catch (err) {
@@ -4237,6 +4561,43 @@
           submitBtn.textContent = origText || 'ОТПРАВИТЬ В TELEGRAM ✈';
         }
       }
+    });
+  }
+
+  document.querySelectorAll('[data-bug-tab]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sfx.click();
+      setBugTab(btn.dataset.bugTab);
+    });
+  });
+
+  const bugRefreshBtn = document.getElementById('bug-inbox-refresh');
+  if (bugRefreshBtn) {
+    bugRefreshBtn.addEventListener('click', async () => {
+      sfx.click();
+      bugRefreshBtn.disabled = true;
+      const orig = bugRefreshBtn.textContent;
+      bugRefreshBtn.textContent = 'ПРОВЕРЯЕМ…';
+      await syncReportReplies(true);
+      bugRefreshBtn.textContent = orig || 'ОБНОВИТЬ ↻';
+      bugRefreshBtn.disabled = false;
+    });
+  }
+
+  const replyToastOpen = document.getElementById('reply-toast-open');
+  if (replyToastOpen) {
+    replyToastOpen.addEventListener('click', () => {
+      sfx.click();
+      openBugReportModal({ tab: 'inbox' });
+    });
+  }
+
+  const replyToastClose = document.getElementById('reply-toast-close');
+  if (replyToastClose) {
+    replyToastClose.addEventListener('click', () => {
+      sfx.click();
+      replyToastDismissed = true;
+      updateReplyIndicators();
     });
   }
 
@@ -4351,6 +4712,8 @@
   initStaticDecor();
   applySettingsToDom();
   openMode('daily');
+  updateReplyIndicators();
+  setTimeout(() => { syncReportReplies(true); }, 1200);
 
   let mainRafId = 0;
   let lastFrameTs = 0;
@@ -4387,10 +4750,15 @@
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && !mainRafId) {
-      lastFrameTs = 0;
-      lastBgRenderTs = 0;
-      mainRafId = requestAnimationFrame(loop);
+    if (!document.hidden) {
+      if (!mainRafId) {
+        lastFrameTs = 0;
+        lastBgRenderTs = 0;
+        mainRafId = requestAnimationFrame(loop);
+      }
+      if (Date.now() - lastRepliesSyncAt >= 60_000) {
+        syncReportReplies(false);
+      }
     }
   });
 
