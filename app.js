@@ -3915,7 +3915,7 @@
     if (!reports.length) return false;
 
     const now = Date.now();
-    if (!force && now - lastRepliesSyncAt < 15_000) return false;
+    if (!force && now - lastRepliesSyncAt < 5_000) return false;
     lastRepliesSyncAt = now;
 
     try {
@@ -4115,6 +4115,7 @@
       renderCodex('');
       setTimeout(() => { if (searchEl) searchEl.focus(); }, 60);
     }
+    if (id === 'menu-backdrop') syncReportReplies(false);
     const el = document.getElementById(id);
     if (el) {
       el.hidden = false;
@@ -4713,7 +4714,7 @@
   applySettingsToDom();
   openMode('daily');
   updateReplyIndicators();
-  setTimeout(() => { syncReportReplies(true); }, 1200);
+  setTimeout(() => { syncReportReplies(true); }, 400);
 
   let mainRafId = 0;
   let lastFrameTs = 0;
@@ -4756,10 +4757,12 @@
         lastBgRenderTs = 0;
         mainRafId = requestAnimationFrame(loop);
       }
-      if (Date.now() - lastRepliesSyncAt >= 60_000) {
-        syncReportReplies(false);
-      }
+      syncReportReplies(false);
     }
+  });
+
+  window.addEventListener('focus', () => {
+    syncReportReplies(false);
   });
 
   mainRafId = requestAnimationFrame(loop);
