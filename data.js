@@ -1861,7 +1861,7 @@
   {
     "id": "russia-river",
     "text": "Назови реку, протекающую по территории России",
-    "count": 110,
+    "count": 472,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125a`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125b`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
