@@ -643,7 +643,7 @@
   {
     "id": "historical-ruler",
     "text": "Назови исторического правителя, царя или полководца",
-    "count": 1146,
+    "count": 1157,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125e`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125f`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
