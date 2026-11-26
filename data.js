@@ -793,7 +793,7 @@
   {
     "id": "music-genre",
     "text": "Назови музыкальный жанр или поджанр",
-    "count": 722,
+    "count": 736,
     "strictShape": false
   },
   {
@@ -805,7 +805,7 @@
   {
     "id": "cis-music-artist",
     "text": "Назови русскоязычную группу или исполнителя (Россия и СНГ)",
-    "count": 661,
+    "count": 682,
     "strictShape": false
   },
   {
@@ -1021,7 +1021,7 @@
   {
     "id": "weapon-armor",
     "text": "Назови холодное оружие, доспех или элемент старинной экипировки",
-    "count": 633,
+    "count": 649,
     "strictShape": false
   },
   {
@@ -1045,7 +1045,7 @@
   {
     "id": "fashion-brand",
     "text": "Назови бренд одежды, обуви или модный дом",
-    "count": 236,
+    "count": 264,
     "strictShape": false
   },
   {
@@ -1447,7 +1447,7 @@
   {
     "id": "food-drink-brand",
     "text": "Назови известный бренд продуктов, сладостей или напитков из супермаркета",
-    "count": 211,
+    "count": 232,
     "strictShape": false
   },
   {
@@ -1579,7 +1579,7 @@
   {
     "id": "famous-singer-solo",
     "text": "Назови легендарного сольного певца или певицу мира",
-    "count": 354,
+    "count": 368,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261125g`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261126a`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
