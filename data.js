@@ -979,7 +979,7 @@
   {
     "id": "world-language",
     "text": "Назови язык народов мира (живой, мёртвый или вымышленный — не язык программирования)",
-    "count": 255,
+    "count": 344,
     "strictShape": false
   },
   {
@@ -1423,7 +1423,7 @@
   {
     "id": "witcher-skyrim",
     "text": "Назови персонажа, существо или место из «Ведьмака» или Skyrim (TES)",
-    "count": 188,
+    "count": 254,
     "strictShape": false
   },
   {
@@ -1615,7 +1615,7 @@
   {
     "id": "fantasy-creature-race",
     "text": "Назови фэнтезийную расу или сказочное существо",
-    "count": 190,
+    "count": 225,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261126c`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261127a`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
