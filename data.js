@@ -1993,7 +1993,7 @@
   {
     "id": "dog-working-role",
     "text": "Назови животное, которое впадает в спячку или ведёт ночной образ жизни",
-    "count": 90,
+    "count": 210,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261127a`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261127b`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
