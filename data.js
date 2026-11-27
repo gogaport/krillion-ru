@@ -949,7 +949,7 @@
   {
     "id": "world-literature",
     "text": "Назови произведение зарубежной литературы (книгу, роман или пьесу)",
-    "count": 621,
+    "count": 682,
     "strictShape": false
   },
   {
@@ -1297,7 +1297,7 @@
   {
     "id": "ru-cartoon-char",
     "text": "Назови персонажа советского или российского мультфильма",
-    "count": 193,
+    "count": 235,
     "strictShape": false
   },
   {
@@ -1945,7 +1945,7 @@
   {
     "id": "road-sign-term",
     "text": "Назови дорожный знак, элемент дороги или термин из ПДД",
-    "count": 95,
+    "count": 130,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261126b`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261126c`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
