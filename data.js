@@ -499,7 +499,7 @@
   {
     "id": "profession-oneword",
     "text": "Назови профессию из одного слова",
-    "count": 1105,
+    "count": 1148,
     "strictShape": false
   },
   {
@@ -2078,7 +2078,7 @@
 
   function fetchChunkWithRetry(promptId, attempt = 0) {
     const opts = attempt > 0 ? { cache: 'reload' } : undefined;
-    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261127b`, opts)
+    return fetch(`./db/${encodeURIComponent(promptId)}.json?v=20261128a`, opts)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status} for ${promptId}`);
         return res.json();
